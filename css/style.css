@@ -200,6 +200,47 @@ button.primary.love-btn { background: #d5486b; color: #fff; }
 .chat { display: flex; gap: 10px; align-items: flex-start; background: var(--chip); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
 .chat-body p { margin: 2px 0; }
 
+/* 場面（酒場・仲間）。一枚絵の上に人とウィンドウを重ねる */
+#scene.open { position: fixed; inset: 0; background: rgba(10, 6, 4, 0.75); display: flex; align-items: center; justify-content: center; padding: 8px; z-index: 9; }
+.scene-box { position: relative; width: min(1000px, 100%); aspect-ratio: 16 / 10; overflow: hidden; border-radius: 10px; border: 3px solid #2a180c;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); font-size: clamp(12px, 1.6vw, 16px); color: #fff; background: #3a2616; }
+@media (max-width: 640px) {
+  .scene-box { aspect-ratio: auto; height: calc(100vh - 16px); font-size: 13px; }
+  .scene-box .focus { width: 46%; }
+  .scene-box .win.info { width: 48%; }
+  .scene-box .win.cmds { width: 48%; }
+  .scene-box .standee { width: 22% !important; }
+}
+.scene-art { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.standee { position: absolute; transform: translateX(-50%); padding: 0; border: none; background: none; cursor: pointer; color: #fff; }
+.standee svg { width: 100%; height: auto; display: block; border-radius: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); transition: transform 0.15s; }
+.standee:hover svg, .standee:focus-visible svg { transform: translateY(-4px); outline: 3px solid #f0c060; }
+.standee .plate { display: block; margin-top: 3px; background: rgba(20, 12, 8, 0.8); border-radius: 4px; padding: 1px 4px; line-height: 1.3; }
+.standee .plate small { display: block; font-size: 0.75em; color: #e6d3b4; }
+.standee .mini-love { position: absolute; top: 2px; right: 2px; background: #d5486b; color: #fff; border-radius: 8px; padding: 0 5px; font-size: 0.75em; }
+.focus { position: absolute; left: 3%; top: 5%; width: 40%; }
+.focus svg { width: 100%; height: auto; display: block; border-radius: 8px; border: 3px solid #2a180c; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6); }
+.win { position: absolute; background: rgba(18, 22, 44, 0.86); border: 2px solid #e6d3b4; border-radius: 8px; padding: 0.6em 0.9em; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5); }
+.win.message { left: 2%; right: 2%; bottom: 2.5%; min-height: 13%; max-height: 34%; overflow-y: auto; }
+.win.message .name { display: inline-block; background: #e6d3b4; color: #2a180c; font-weight: bold; border-radius: 4px; padding: 0 8px; margin-bottom: 4px; }
+.win.message p { margin: 2px 0; line-height: 1.6; white-space: pre-wrap; }
+.win.message p.say { font-weight: bold; }
+.win.cmds { right: 2%; top: 4%; width: 32%; max-height: 58%; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.win.info { right: 2%; top: 4%; width: 52%; }
+.scene-box .win.info + .win.cmds { top: 24%; max-height: 46%; }
+.win .who { font-size: 1.25em; font-weight: bold; }
+.win .who small { font-size: 0.65em; font-weight: normal; color: #e6d3b4; margin-left: 8px; }
+.win .hint { font-size: 0.8em; color: #e6d3b4; }
+.win .love-row .bar.love { flex: 1; }
+.cmd-title { font-weight: bold; color: #f0c060; }
+.cmd-note { font-size: 0.8em; color: #e6d3b4; }
+.cmd-scroll { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+button.cmd { text-align: left; background: rgba(255, 255, 255, 0.06); color: #fff; border: 1px solid transparent; border-radius: 4px; padding: 0.3em 0.6em; font-size: 1em; }
+button.cmd:hover:not(:disabled), button.cmd:focus-visible { border-color: #f0c060; background: rgba(240, 192, 96, 0.18); }
+button.cmd::before { content: '▶ '; color: #f0c060; font-size: 0.8em; opacity: 0; }
+button.cmd:hover:not(:disabled)::before { opacity: 1; }
+button.cmd.love { color: #ffc0cf; }
+
 /* 出来事の窓 */
 #dialog.open { position: fixed; inset: 0; background: rgba(20, 12, 8, 0.6); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
 .dialog-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 22px; max-width: 520px; width: 100%; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4); }

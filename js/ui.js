@@ -12,7 +12,6 @@
   let basket = { give: {}, take: {} };
   let tab = 'trade';
   let notice = '';
-  let chat = null;      // 話した相手のひとこと { who, text, love }
   let deliverPick = {}; // 造船の材料をいくつ渡すか "依頼uid:品物" → 数
   let nearKey = '';     // 外海で近くにある港（変わったら右の枠を描き直す）
   const winCache = new WeakMap();
@@ -26,13 +25,13 @@
     renderStage(s);
     renderTown(s);
     renderLog(s);
+    G.Scene.render(s);
     renderDialog(s);
   };
 
   function act(fn) {
     const res = fn();
     notice = res && !res.ok ? res.msg : '';
-    chat = res && res.chat ? res.chat : null;
     if (res && res.ok) basket = { give: {}, take: {} };
     G.save(G.state);
     UI.render();
@@ -158,9 +157,7 @@
     if (tab === 'trade') body = tradeView(s);
     if (tab === 'village') body = villageView(s);
     if (tab === 'knowledge') body = knowledgeView(s);
-    if (tab === 'tavern') body = tavernView(s);
     if (tab === 'ships') body = shipsView(s);
-    if (tab === 'crew') body = crewView(s);
     if (tab === 'travel') body = travelView(s);
     $('#town').innerHTML = `
       <h2>${td.name}</h2>
@@ -429,97 +426,6 @@
     return Math.min(v === undefined ? Infinity : v, deliverMax(s, o, g));
   }
 
-  function aptTable(p) {
-    return `<div class="apts">${Object.keys(D.cabins).map(k =>
-      `<span title="${D.cabins[k].name}">${D.cabins[k].icon}${D.cabins[k].name} <b>${stars(p.apt[k] || 0)}</b></span>`).join('')}</div>`;
-  }
-
-  function personCard(s, p, extra) {
-    return `<div class="card person">
-      ${G.Portrait.svg(p, 64)}
-      <div class="person-body">
-        <div><b>${p.name}</b>　<span class="muted small">${p.role}・${p.age}歳・強さ${p.str}</span></div>
-        <div class="small">${p.bio}</div>
-        ${aptTable(p)}
-        ${extra}
-      </div>
-    </div>`;
-  }
-
-  // ---------- 好感度 ----------
-  function loveBar(s, id) {
-    if (!G.Bonds.canBond(s, id)) return '';
-    const B = G.Bonds, b = B.get(s, id), p = B.person(s, id);
-    const next = D.bondStages[b.stage] && (p.sex === 'f' || !D.bondStages[b.stage].lover) ? D.bondStages[b.stage] : null;
-    const hint = next ? `${next.at}で「${next.name}」` : B.isLover(s, id) && !b.married ? `${R.marryAt}で結婚を申し込める` : '';
-    const tags = (b.married ? '<span class="tag love">♥ 妻</span>' : B.isLover(s, id) ? '<span class="tag love">♥ 恋人</span>' : '')
-      + (G.Family.pregnant(s, id) ? '<span class="tag hi">身ごもっている</span>' : '');
-    return `<div class="love-row"><span class="heart">♥</span><div class="bar love"><div style="width:${b.love}%"></div></div>
-      <span class="small">${b.love}　<b>${B.stageName(s, id)}</b>${hint ? `<span class="muted">（${hint}）</span>` : ''}</span>${tags}</div>`;
-  }
-
-  // 話す・贈り物などのボタン。treat はおごる（酒場だけ）。恋人とはデート、好感度が十分なら結婚の申し込み
-  function bondButtons(s, id, treat) {
-    const B = G.Bonds, b = B.get(s, id), p = B.person(s, id), now = s.season;
-    const gifts = Object.keys(D.goods).filter(g => s.cargo[g] > 0);
-    const opts = gifts.map(g => `<option value="${g}">${D.goods[g].icon}${D.goods[g].name}（${s.cargo[g]}）${(p.likes || []).includes(g) ? ' ♥好物' : ''}</option>`).join('');
-    const lover = B.isLover(s, id), proposeErr = B.canPropose(s, id);
-    return `<div class="buttons bond-buttons">
-      <button data-act="talk" data-id="${id}" ${b.talked === now ? 'disabled' : ''}>話す</button>
-      ${treat ? `<button data-act="treat" data-id="${id}" ${b.treated === now ? 'disabled' : ''}>一杯おごる（恩−${R.treatCost}）</button>` : ''}
-      ${lover ? `<button class="love-btn" data-act="date" data-id="${id}" ${b.dated === now ? 'disabled' : ''}>♥ デートする</button>` : ''}
-      ${gifts.length ? `<select id="gift-${id}">${opts}</select><button data-act="gift" data-id="${id}" ${b.gifted === now ? 'disabled' : ''}>贈る</button>` : ''}
-    </div>
-    ${lover && !b.married ? (proposeErr ? `<div class="small muted">結婚: ${proposeErr}</div>` : `<div class="buttons"><button class="primary love-btn" data-act="propose" data-id="${id}">💍 結婚を申し込む（${D.goods[B.weddingGift(s)].name}を贈る）</button></div>`) : ''}
-    <div class="small muted">好きな物: ${(p.likes || []).map(g => D.goods[g].icon + D.goods[g].name).join('・') || '—'}　（話す・おごる・贈る・デートは、それぞれ一季節に一度）</div>`;
-  }
-
-  function chatBubble(s) {
-    if (!chat) return '';
-    const p = G.Bonds.person(s, chat.who);
-    return `<div class="chat">${G.Portrait.svg(p, 48)}<div class="chat-body"><b>${p.name}</b>
-      ${chat.text.split('\n').map(l => `<p>${l}</p>`).join('')}
-      ${chat.love ? `<span class="small heart">♥ +${chat.love}</span>` : ''}</div></div>`;
-  }
-
-  function crewView(s) {
-    const F = G.Fleet;
-    let html = chatBubble(s) + '<h3>仲間</h3>';
-    for (const m of s.party) {
-      const seat = F.seatOf(s, m.id);
-      const where = seat ? `${F.shipName(seat.sh)}の${D.cabins[F.cabinOf(seat.sh, seat.i)].name}` : '船室なし（漕ぎ手として乗っている）';
-      html += personCard(s, m, `<div class="small muted">いまの持ち場: ${where}</div>
-        ${m.id === 'you' ? '' : loveBar(s, m.id) + bondButtons(s, m.id, false)}`);
-    }
-    html += familyView(s);
-    html += `<p class="muted small">戦いには仲間全員と水夫（${R.sailorBattleMax}人まで）が加わる。人が多いほど旅の保存食も多く要る（いま1季節 ${F.foodPerSeason(s)}）。持ち場は「船と船室」で決める。
-      得意な船室（適性★4以上）に座らせると季節ごとに、一緒に戦いに勝つと、好感度が上がる。好感度が節目に届くと出来事が起き、強さや適性が伸びる。
-      「恋人」になるとデートができ、好感度が${R.marryAt}に届くと${R.weddingGifts.map(g => D.goods[g].name).join('か')}を贈って結婚を申し込める。新しい仲間は酒場で探せる。</p>`;
-    return html;
-  }
-
-  // 家族（妻と、仲間になる前の子供たち）
-  function familyView(s) {
-    const B = G.Bonds, Fa = G.Family;
-    const wives = Object.keys(s.bonds).filter(id => B.isWife(s, id));
-    if (!wives.length && !s.children.length) return '';
-    let html = '<h3>家族</h3>';
-    if (wives.length) {
-      html += `<p class="small">妻: ${wives.map(id => {
-        const p = B.person(s, id), where = G.Fleet.member(s, id) ? '船' : D.towns[Object.keys(D.towns).find(t => (D.towns[t].tavern || {}).girl === id)]?.name || '港';
-        return `${p.name}（${where}${Fa.pregnant(s, id) ? '・身ごもっている' : ''}）`;
-      }).join('、')}</p>`;
-    }
-    for (const c of s.children) {
-      const mother = B.person(s, c.mother);
-      html += `<div class="card person">${G.Portrait.svg(c, 48)}<div class="person-body">
-        <div><b>${c.name}</b>　<span class="muted small">${c.sex === 'f' ? '娘' : '息子'}・${Math.floor(c.age)}歳・母 ${mother.name}</span></div>
-        <div class="small muted">あと${Fa.seasonsToJoin(s, c)}季節ほどで、仲間として船に乗る。${G.Fleet.bonus(s).nursery > 0 ? '保育室で元気に育っている。' : '保育室に人を座らせると早く育つ。'}</div>
-      </div></div>`;
-    }
-    return html;
-  }
-
   // ---------- 村の様子 ----------
   function villageView(s) {
     const id = s.townId, t = s.towns[id], V = G.Civ, td = D.towns[id];
@@ -558,42 +464,6 @@
       ${pending.length ? `<p class="small">この村の研究者が編み出しそうな技: ${pending.map(k => { const kd = D.knowledge[k], miss = kd.requires.filter(r => !t.knowledge.includes(r)); return `？？？（村が「${V.sizeName(kd.invent.size)}」以上${miss.length ? `、先に${miss.map(r => D.knowledge[r].name).join('・')}が要る` : ''}）`; }).join('、')}</p>` : ''}
       ${err ? `<span class="muted small">${err}</span>` : `<button class="primary" data-act="fund">研究者を支える（恩−${cost}）</button>`}
     </div>`;
-    return html;
-  }
-
-  // ---------- 酒場 ----------
-  function tavernView(s) {
-    const F = G.Fleet, B = G.Bonds, tv = D.towns[s.townId].tavern;
-    let html = chatBubble(s);
-    if (!tv) html += '<p class="muted">この村には酒場がない。広場で人に声をかけてみた。</p>';
-    else if (!tv.girl) html += `<h3>${tv.name}</h3>`;
-    else {
-      const girl = tv.girl, p = B.person(s, girl), joined = !!F.member(s, girl);
-      html += `<h3>${tv.name}</h3>`;
-      if (joined) {
-        html += `<p class="muted">${p.name}はいま、あなたの仲間として旅をしている。酒場は村の人が預かっている。</p>`;
-      } else {
-        const inv = B.canInvite(s, girl);
-        html += personCard(s, p, `${loveBar(s, girl)}${bondButtons(s, girl, true)}
-          <div class="buttons">${inv ? `<span class="muted small">仲間に誘う: ${inv}</span>` : `<button class="primary" data-act="invite" data-id="${girl}">仲間に誘う</button>`}</div>`);
-        html += '<p class="muted small">酒場の娘と話すと、ほかの村の相場や、まだ知らない港の噂を聞ける。</p>';
-      }
-    }
-    const coin = E().usesCoins(s, s.townId), price = F.sailorPrice(s);
-    html += `<h3>水夫</h3><div class="card">
-      <p>いま水夫 <b>${s.sailors}人</b>・仲間 ${s.party.length}人。船団を動かすのに <b>${F.crewNeed(s)}人</b>要る${F.crewFactor(s) < 1 ? '　<span class="bad">人手が足りず、船足が落ちている</span>' : ''}</p>
-      <div class="buttons"><button class="primary" data-act="hire">${R.sailorHire}人雇う（${coin ? `金貨${price}枚` : `恩−${price}`}）</button>
-        <button data-act="dismiss" ${s.sailors ? '' : 'disabled'}>${R.sailorHire}人に暇を出す</button></div>
-      <p class="muted small">水夫は名前のない船乗り。船を動かし、戦いにも${R.sailorBattleMax}人まで加わる。1人が1季節に保存食を${R.sailorFood}食べる。戦いに負けるとさらわれることがある。</p>
-    </div>`;
-    const rs = F.recruits(s);
-    html += '<h3>酒場にいる、仲間になってくれそうな人</h3>';
-    if (!rs.length) html += '<p class="muted">いまはいない。</p>';
-    for (const r of rs) {
-      const err = F.canRecruit(s, r);
-      html += personCard(s, r, `<div class="small muted">名声${r.fame}以上・恩${r.cost}${r.size ? `・村が「${G.Civ.sizeName(r.size)}」以上` : ''}</div>
-        ${err ? `<span class="muted small">${err}</span>` : `<button class="primary" data-act="recruit" data-id="${r.id}">仲間に誘う（恩−${r.cost}）</button>`}`);
-    }
     return html;
   }
 
@@ -825,7 +695,12 @@
     const a = b.dataset.act, g = b.dataset.g, uid = Number(b.dataset.uid);
     const F = G.Fleet, C = G.Combat;
     switch (a) {
-      case 'tab': tab = b.dataset.tab; notice = ''; chat = null; break;
+      case 'tab':
+        // 酒場と仲間は一枚絵の場面で開く
+        if (b.dataset.tab === 'tavern' || b.dataset.tab === 'crew') G.Scene.enter(b.dataset.tab);
+        else tab = b.dataset.tab;
+        notice = '';
+        break;
       case 'step': {
         const kind = b.dataset.kind, other = kind === 'give' ? 'take' : 'give';
         const limit = kind === 'give' ? s.cargo[g] : s.towns[s.townId].stock[g];
@@ -881,19 +756,7 @@
         deliverPick = {};
         return act(() => F.deliver(s, uid, amounts));
       }
-      case 'recruit': return act(() => F.recruit(s, b.dataset.id));
       case 'fund': return act(() => G.Civ.fund(s));
-      case 'talk': return act(() => G.Bonds.talk(s, b.dataset.id));
-      case 'treat': return act(() => G.Bonds.treat(s, b.dataset.id));
-      case 'gift': {
-        const sel = document.getElementById('gift-' + b.dataset.id);
-        return act(() => G.Bonds.gift(s, b.dataset.id, sel && sel.value));
-      }
-      case 'invite': return act(() => G.Bonds.invite(s, b.dataset.id));
-      case 'date': return act(() => G.Bonds.date(s, b.dataset.id));
-      case 'propose': return act(() => G.Bonds.propose(s, b.dataset.id));
-      case 'hire': return act(() => F.hireSailors(s));
-      case 'dismiss': return act(() => F.dismissSailors(s));
       case 'event-next': s.pendingEvents.shift(); G.save(s); break;
       case 'fight': return startBattle(s);
       case 'flee':

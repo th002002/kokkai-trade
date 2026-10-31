@@ -377,7 +377,7 @@ Game.DATA = {
             look: { skin: '#8f5f3c', hair: '#2a2440', style: 'braid', paint: 'band', cloth: '#3f3a36', beard: false, acc: 'bone' } },
     mira: { name: 'ミラ', sex: 'f', role: '見張り', age: 18, str: 2, bio: '鷹の目をもつ娘。帆柱のてっぺんが好きで、きれいな物に目がない。',
             apt: { captain: 1, lookout: 5, oars: 2, galley: 2, hold: 1, bow: 1, nursery: 2 }, likes: ['shell', 'amber'],
-            look: { skin: '#d8b08a', hair: '#a0602e', style: 'twin', paint: 'none', cloth: '#4f7a94', beard: false, acc: 'feather' } },
+            look: { img: 'img/people/mira.jpg', skin: '#c08a5e', hair: '#9a8466', eye: '#5a6a80', style: 'twin', paint: 'none', cloth: '#3c4a66', beard: false, acc: 'feather' } },
     saka: { name: 'サカ', sex: 'm', role: '老舟長', age: 61, str: 4, bio: '若いころ海峡まで漕いだという老人。風と潮をよく知る。',
             apt: { captain: 5, lookout: 3, oars: 2, galley: 2, hold: 3, bow: 2, nursery: 2 }, likes: ['honey', 'wine'],
             look: { skin: '#a8754e', hair: '#d8d8d8', style: 'long', paint: 'stripes', cloth: '#6b4423', beard: true, acc: 'beads' } },

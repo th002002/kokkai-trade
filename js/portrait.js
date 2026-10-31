@@ -161,9 +161,11 @@
     const L = person.look, age = person.age == null ? 25 : person.age, female = person.sex === 'f';
     const child = age < 13, old = age >= 50, soft = (female || child) && !old;
     const vb = `${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}`;
-    if (L.img) {
+    // 絵は data.js の側を見る（途中から絵を足しても、遊んでいる途中のセーブに反映されるように）
+    const def = G.DATA.people[person.id], img = (def && def.look.img) || L.img;
+    if (img) {
       return `<svg class="portrait" viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true">
-        <image href="${L.img}" x="0" y="0" width="64" height="64" preserveAspectRatio="xMidYMin slice"/></svg>`;
+        <image href="${img}" x="0" y="0" width="64" height="64" preserveAspectRatio="xMidYMin slice"/></svg>`;
     }
     const skin = soft ? tint(L.skin, 0.35) : L.skin, skinS = shade(skin, 0.84), iris = eyeColor(person), cloth = L.cloth, clothS = shade(cloth, 0.72);
     const face = soft

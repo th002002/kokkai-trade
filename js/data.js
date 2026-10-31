@@ -640,7 +640,10 @@ Game.DATA = {
   },
 
   rules: {
-    idealStock: 20,     // この在庫のとき価値がちょうど base * mult になる
+    idealStock: 20,     // この在庫のとき価値がちょうど base * mult になる（市場の深さを掛ける）
+    depthPop: 300,      // 市場の深さ = √(人口 / depthPop)。深い市場ほど在庫が多く、売り買いで値が動きにくい
+    depthMin: 0.6,
+    depthMax: 4,
     priceMin: 0.35,     // 在庫過多のときの価値の下限倍率
     priceMax: 3,        // 品薄のときの価値の上限倍率
     recovery: 0.35,     // 1季節で在庫が普段の量へ戻る割合

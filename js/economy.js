@@ -25,9 +25,12 @@
       if (e.mult) mult *= 1 + (e.mult - 1) * w;
     }
     if (gd.lux) mult *= 1 + R.luxPerSize * (G.Civ.size(s, townId) - 1);
-    target *= Math.max(0.5, Math.min(3, Math.sqrt(t.pop / td.pop))) * (0.8 + t.boom / 250);
+    target *= Math.max(0.5, Math.min(3, Math.sqrt(t.pop / td.pop))) * (0.8 + t.boom / 250) * E.depth(s, townId);
     return { target, mult };
   };
+
+  // 市場の深さ。人の多い町ほど在庫が多く、たくさん売り買いしても値が動きにくい（小さな村は 0.6、大都市は最大 4）
+  E.depth = (s, townId) => Math.max(R.depthMin, Math.min(R.depthMax, Math.sqrt(s.towns[townId].pop / R.depthPop)));
 
   // この村がその品物を扱うか（村の時代が品物の時代に届いているか、自分で作っている）
   E.handles = (s, townId, g) => G.Civ.era(s, townId) >= D.goods[g].era || E.effective(s, townId, g).target > 0;
@@ -45,7 +48,7 @@
   E.unitPrice = function (s, townId, g, stock) {
     const { mult } = E.effective(s, townId, g);
     const seasonMod = G.seasonInfo(s.season).mods[g] || 1;
-    const scarcity = Math.min(R.priceMax, Math.max(R.priceMin, Math.sqrt(R.idealStock / Math.max(stock, 1))));
+    const scarcity = Math.min(R.priceMax, Math.max(R.priceMin, Math.sqrt(R.idealStock * E.depth(s, townId) / Math.max(stock, 1))));
     return D.goods[g].base * mult * seasonMod * scarcity;
   };
 
@@ -75,6 +78,33 @@
     }
     const credit = s.towns[townId].credit, balance = credit + giveV - takeV;
     return { coin: false, giveV, takeV, credit, balance, ok: balance >= -1e-6 };
+  };
+
+  // ほかの港の相場の控え（memo）で、その品物を一番高く引き取ってくれた値と港。知らなければ null
+  E.bestElsewhere = function (s, townId, g) {
+    let best = null;
+    for (const id in s.memo) {
+      if (id === townId || s.memo[id].give[g] == null) continue;
+      if (!best || s.memo[id].give[g] > best.v) best = { v: s.memo[id].give[g], town: id };
+    }
+    return best;
+  };
+
+  // ここで売ると得な数。1個ごとに値が下がるので、ほかで売れる値（知らなければふつうの値）を下回る手前まで
+  E.goodSellCount = function (s, townId, g) {
+    const best = E.bestElsewhere(s, townId, g), floor = Math.max(best ? best.v : 0, D.goods[g].base);
+    let stock = s.towns[townId].stock[g], n = 0;
+    while (n < s.cargo[g] && E.giveUnit(s, townId, g, stock + n) >= floor) n++;
+    return { n, floor, best };
+  };
+
+  // ここで買って、ほかの港で売れば儲かる数（ほかの相場を知っているときだけ）。1個ごとに値が上がるので、ほかで売れる値の9割までに抑える
+  E.goodBuyCount = function (s, townId, g) {
+    const best = E.bestElsewhere(s, townId, g);
+    if (!best) return { n: 0, best: null };
+    let stock = s.towns[townId].stock[g], n = 0;
+    while (stock - n > 0 && E.takeUnit(s, townId, g, stock - n - 1) <= best.v * 0.9) n++;
+    return { n, best };
   };
 
   // 物々交換の差額を保存食で合わせる。足りなければ保存食を渡し、余れば保存食を受け取る（恩は使わない）

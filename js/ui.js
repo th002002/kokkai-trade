@@ -187,6 +187,26 @@
       <button data-act="step" data-kind="${kind}" data-g="${g}" data-d="1">＋</button>${extra}</div>`;
   }
 
+  // 交換の台の1行。合計に加えて、平均と最後の1個の値（値崩れ・値上がりが見えるように）と「得な数」のボタン
+  function dealLine(s, [kind, g, n, v], unit, giveLabel, takeLabel) {
+    const id = s.townId, stock = s.towns[id].stock[g], give = kind === 'give';
+    const first = give ? E().giveUnit(s, id, g, stock) : E().takeUnit(s, id, g, stock - 1);
+    const last = give ? E().giveUnit(s, id, g, stock + n - 1) : E().takeUnit(s, id, g, stock - n);
+    const good = give ? E().goodSellCount(s, id, g) : E().goodBuyCount(s, id, g);
+    // 得な数を越えたら知らせる（売りはほかで売れる値・ふつうの値を下回る、買いはほかで売っても儲からない）
+    const slid = give ? last < good.floor : good.best ? last > good.best.v * 0.9 : last > first * 1.3;
+    const where = good.best ? `${D.towns[good.best.town].name}で${fmt(good.best.v)}` : 'ふつうの値';
+    const goodBtn = give
+      ? `<button class="mini" data-act="good" data-kind="give" data-g="${g}" data-n="${good.n}" title="${where}を下回らない数" ${good.n === n ? 'disabled' : ''}>得な数 ${good.n}</button>`
+      : good.best ? `<button class="mini" data-act="good" data-kind="take" data-g="${g}" data-n="${good.n}" title="${where}で売れば儲かる数" ${good.n === n ? 'disabled' : ''}>儲かる数 ${good.n}</button>` : '';
+    return `<tr>
+      <td class="small ${give ? 'good' : ''}">${give ? giveLabel : takeLabel}</td>
+      <td>${D.goods[g].icon} ${D.goods[g].name}</td>
+      <td>${stepper(kind, g, n)}${goodBtn}</td>
+      <td class="num">${fmt(v)}${unit}<div class="small ${slid ? 'bad' : 'muted'}">平均${fmt(v / n)}・最後の1個${fmt(last)}${slid ? (give ? '（売りすぎ）' : '（買いすぎ）') : ''}</div></td>
+      <td><button class="mini" data-act="unpick" data-kind="${kind}" data-g="${g}" title="台から下ろす">✕</button></td></tr>`;
+  }
+
   // 交換。左に自分の積荷、右に村の品を並べ、押した品物が下の「交換の台」に乗る。数は台の上で決める
   let tradeCat = 'all', tradeSort = 'deal';
   function tradeView(s) {
@@ -233,12 +253,8 @@
     }
     const deal = `<div class="deal">
       <h3>交換の台</h3>
-      ${lines.length ? `<table class="trade"><tbody>${lines.map(([kind, g, n, v]) => `<tr>
-        <td class="small ${kind === 'give' ? 'good' : ''}">${kind === 'give' ? giveLabel : takeLabel}</td>
-        <td>${D.goods[g].icon} ${D.goods[g].name}</td>
-        <td>${stepper(kind, g, n)}</td>
-        <td class="num">${fmt(v)}${unit}</td>
-        <td><button class="mini" data-act="unpick" data-kind="${kind}" data-g="${g}" title="台から下ろす">✕</button></td></tr>`).join('')}</tbody></table>`
+      ${lines.length ? `<table class="trade"><tbody>${lines.map(line => dealLine(s, line, unit, giveLabel, takeLabel)).join('')}</tbody></table>
+        <p class="muted small">同じ品物をたくさん${giveLabel}と1個ごとに値が下がり、たくさん${takeLabel}と上がる（大きな町ほど動きにくい）。「得な数」は、ほかの港の相場と比べて損しない数。</p>`
         : `<p class="muted small">上の品物を押すと、ここに乗る。</p>`}
       <div>${sum}</div>
       <div class="buttons">
@@ -718,6 +734,12 @@
         basket[kind][g] = a === 'unpick' ? 0 : Math.min(limit, (basket[kind][g] || 0) + 1);
         basket[other][g] = 0;
         notice = '';
+        break;
+      }
+      case 'good': {
+        const kind = b.dataset.kind, other = kind === 'give' ? 'take' : 'give';
+        basket[kind][g] = Number(b.dataset.n);
+        basket[other][g] = 0;
         break;
       }
       case 'tcat': tradeCat = b.dataset.c; break;

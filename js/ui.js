@@ -279,27 +279,39 @@
         同じ品物をたくさん${giveLabel}ほど村に余って値が下がる。季節が過ぎると村の在庫は元に戻っていく。交換するほど村の景気が良くなる。</p>`;
   }
 
+  // 知識。1行1知識の一覧にし、押した知識だけ説明を開く。ふだんは「この村でできること」だけに絞る
+  let knowFilter = 'here', knowOpen = null;
   function knowledgeView(s) {
-    let html = '';
+    const id = s.townId, t = s.towns[id], K = G.Knowledge;
     // まだどの村も編み出していない知識は伏せておく
-    const known = k => s.knowledge.includes(k) || Object.values(s.towns).some(t => t.knowledge.includes(k));
-    for (const k in D.knowledge) {
-      const kd = D.knowledge[k];
-      if (!known(k)) continue;
-      const learnErr = G.Knowledge.canLearn(s, k);
-      const teachErr = G.Knowledge.canTeach(s, k);
-      let action;
-      if (!teachErr) action = `<button class="primary" data-act="teach" data-k="${k}">教える（一季節・恩+${kd.teachReward}）</button>`;
-      else if (!learnErr) action = `<button class="primary" data-act="learn" data-k="${k}">学ぶ（一季節・恩−${kd.learnCost}）</button>`;
-      else action = `<span class="muted">学ぶ: ${learnErr}／教える: ${teachErr}</span>`;
-      html += `<div class="card">
-        <h3>${kd.name}${s.knowledge.includes(k) ? '<span class="chip">身につけている</span>' : ''}</h3>
-        <p>${kd.desc}</p>
-        <p class="muted small">${effectText(kd)}</p>
-        ${action}
+    const known = k => s.knowledge.includes(k) || Object.values(s.towns).some(x => x.knowledge.includes(k));
+    const rows = Object.keys(D.knowledge).filter(known).map(k => {
+      const kd = D.knowledge[k], teachErr = K.canTeach(s, k), learnErr = K.canLearn(s, k);
+      const mine = s.knowledge.includes(k), theirs = t.knowledge.includes(k);
+      const canTeach = !teachErr, canLearn = !learnErr, here = canTeach || canLearn || (mine && !theirs) || (!mine && theirs);
+      return { k, kd, mine, theirs, canTeach, canLearn, here, teachErr, learnErr };
+    });
+    const shown = rows.filter(r => knowFilter === 'all' || r.here);
+    const mark = (on, label) => `<span class="kmark ${on ? 'on' : ''}" title="${label}${on ? 'が知っている' : 'は知らない'}">${label}</span>`;
+    const list = shown.map(r => {
+      const { k, kd } = r, open = knowOpen === k;
+      let action = '';
+      if (r.canTeach) action = `<button class="primary mini-act" data-act="teach" data-k="${k}">教える 恩+${kd.teachReward}</button>`;
+      else if (r.canLearn) action = `<button class="primary mini-act" data-act="learn" data-k="${k}">学ぶ 恩−${kd.learnCost}</button>`;
+      else action = `<span class="muted small">${!r.mine && r.theirs ? r.learnErr : r.mine && !r.theirs ? r.teachErr : ''}</span>`;
+      return `<div class="krow ${open ? 'open' : ''}">
+        <button class="kname" data-act="kopen" data-k="${k}">${open ? '▾' : '▸'} ${kd.name}${kd.opensEra ? `<span class="tag lo">${G.Civ.eraName(kd.opensEra)}</span>` : ''}</button>
+        <span class="kmarks">${mark(r.mine, 'あなた')}${mark(r.theirs, 'この村')}</span>
+        <span class="kact">${action}</span>
+        ${open ? `<div class="kdesc small"><p>${kd.desc}</p><p class="muted">${effectText(kd)}</p></div>` : ''}
       </div>`;
-    }
-    return html + `<p class="muted small">知識を教えると村の文明値が上がり、その村で欲しがるもの・余るものが変わる。まだだれも知らない技もある。研究者のいる村が栄えると、自分で編み出すことがある。</p>`;
+    }).join('');
+    const nHere = rows.filter(r => r.here).length;
+    return `<div class="trade-bar"><span>
+        <button class="mini ${knowFilter === 'here' ? 'on' : ''}" data-act="kfilter" data-f="here">この村でできること（${nHere}）</button>
+        <button class="mini ${knowFilter === 'all' ? 'on' : ''}" data-act="kfilter" data-f="all">知られている知識すべて（${rows.length}）</button></span></div>
+      <div class="klist">${list || '<p class="muted small">この村で学べる・教えられる知識はない。</p>'}</div>
+      <p class="muted small">学ぶ・教えるには一季節かかる。教えると村が養える人が増え（時代が進むこともある）、恩をもらえ、その村は恩人として良い条件で交換してくれる。名前を押すと説明が開く。まだだれも知らない技は、研究者のいる村が育つと編み出す。</p>`;
   }
 
   function effectText(kd) {
@@ -742,6 +754,8 @@
         basket[other][g] = 0;
         break;
       }
+      case 'kfilter': knowFilter = b.dataset.f; break;
+      case 'kopen': knowOpen = knowOpen === b.dataset.k ? null : b.dataset.k; break;
       case 'tcat': tradeCat = b.dataset.c; break;
       case 'tsort': tradeSort = b.dataset.k; break;
       case 'food-balance': basket = E().balanceFood(s, s.townId, basket.give, basket.take); break;

@@ -166,6 +166,21 @@ select { font: inherit; color: var(--ink); background: var(--panel); border: 1px
 .goods-row .gname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .goods-row .gtag { text-align: right; }
 .memo-line { margin: 2px 0 6px; }
+
+/* 知識：1行1知識。押した知識だけ説明を開く */
+.klist { border-top: 1px solid var(--line); }
+.krow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 4px 8px; padding: 4px 2px; border-bottom: 1px solid var(--line); }
+.krow.open { background: var(--chip); }
+.kname { border: none; background: none; text-align: left; padding: 2px 4px; font-weight: bold; }
+.kname .tag { margin-left: 6px; font-weight: normal; }
+.kmarks { display: flex; gap: 3px; }
+.kmark { font-size: 11px; border: 1px solid var(--line); border-radius: 8px; padding: 0 5px; color: var(--muted); opacity: 0.5; }
+.kmark.on { opacity: 1; color: var(--good); border-color: var(--good); }
+.kact { text-align: right; }
+.kact .mini-act { padding: 1px 8px; font-size: 13px; }
+.kdesc { grid-column: 1 / -1; padding: 0 6px 4px 22px; }
+.kdesc p { margin: 2px 0; }
+@media (max-width: 600px) { .krow { grid-template-columns: minmax(0, 1fr) auto; } .kact { grid-column: 1 / -1; text-align: left; } }
 .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 
 .card { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }

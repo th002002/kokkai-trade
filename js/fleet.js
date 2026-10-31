@@ -3,6 +3,7 @@
 // 船長のいる船だけが船団に加わって一緒に旅をする。船長のいない船は港に置かれたまま。
 // 船室に仲間を座らせると、その人の適性に応じて船団に効果が出る（Fleet.bonus）。
 // 船は造船のできる港に依頼し、材料を届けると、決まった季節のあとに完成する。
+// 船を動かすには人手（ships[].crew）が要る。名前のある仲間のほかは、水夫を人数だけで数える（s.sailors）。
 (function () {
   const G = window.Game;
   const D = G.DATA;
@@ -33,7 +34,7 @@
 
   // 船室の効果をまとめる
   F.bonus = function (s) {
-    const b = { captainApt: 0, lookout: 0, oars: 0, galley: 0, hold: 0, bow: {} };
+    const b = { captainApt: 0, lookout: 0, oars: 0, galley: 0, hold: 0, nursery: 0, bow: {} };
     const ships = F.ships(s);
     for (const sh of ships) {
       sh.seats.forEach((id, i) => {
@@ -54,14 +55,44 @@
       speed: 1 + b.oars * C.oars.per,
       food: Math.min(0.5, b.galley * C.galley.per),      // 保存食の減り方を減らす割合
       hold: b.hold * C.hold.per,
+      nursery: b.nursery * C.nursery.per,                // 子供の育ちの上乗せ（0 なら保育室に人がいない）
     };
   };
 
+  // 船を動かす人手。水夫と仲間の合計が、船団の船の crew の合計に足りないと船足が落ちる（最低で半分）
+  F.crewNeed = s => sum(F.ships(s), sh => D.ships[sh.type].crew || 0);
+  F.crewHave = s => s.sailors + s.party.length;
+  F.crewFactor = s => { const need = F.crewNeed(s); return need ? Math.min(1, F.crewHave(s) / need) : 1; };
+
   F.capacity = s => sum(F.ships(s), sh => D.ships[sh.type].capacity) + F.bonus(s).hold;
-  F.speed = s => Math.round(Math.min(...F.ships(s).map(sh => D.ships[sh.type].speed)) * F.bonus(s).speed * 100) / 100;
+  F.speed = s => Math.round(Math.min(...F.ships(s).map(sh => D.ships[sh.type].speed)) * F.bonus(s).speed * (0.5 + 0.5 * F.crewFactor(s)) * 100) / 100;
   F.strength = s => sum(F.ships(s), sh => D.ships[sh.type].strength);
   F.sight = s => R.sightRadius + F.bonus(s).sight;
-  F.foodPerSeason = s => Math.ceil(s.party.length * R.foodPerMember * (1 - F.bonus(s).food));
+  F.foodPerSeason = s => Math.ceil((s.party.length + s.sailors * R.sailorFood) * R.foodPerMember * (1 - F.bonus(s).food));
+
+  // ---------- 水夫 ----------
+  // 港で雇う・暇を出す。金貨の町では金貨、物々交換の村では恩で払う
+  F.sailorPrice = s => R.sailorHire * R.sailorCost;
+  F.hireSailors = function (s) {
+    const n = R.sailorHire, cost = F.sailorPrice(s), t = s.towns[s.townId];
+    if (G.Civ.usesCoins(s, s.townId)) {
+      if (s.coins < cost) return fail(`金貨が${cost}枚必要（いま${s.coins}枚）`);
+      s.coins -= cost;
+    } else {
+      if (t.credit < cost) return fail(`恩が${cost}必要（いま${G.fmt(t.credit)}）`);
+      t.credit -= cost;
+    }
+    s.sailors += n;
+    G.log(s, `${D.towns[s.townId].name}で水夫を${n}人雇った（水夫${s.sailors}人）。`);
+    return { ok: true };
+  };
+  F.dismissSailors = function (s) {
+    if (s.sailors <= 0) return fail('水夫はいない。');
+    const n = Math.min(R.sailorHire, s.sailors);
+    s.sailors -= n;
+    G.log(s, `水夫${n}人に暇を出した（水夫${s.sailors}人）。`);
+    return { ok: true };
+  };
 
   // 積荷が載りきるかを確かめながら変更する。載りきらなければ元に戻す
   function tryChange(s, change, undo) {

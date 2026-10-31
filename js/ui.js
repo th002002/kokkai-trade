@@ -53,7 +53,7 @@
       <div class="stat"><b>${G.seasonLabel(s.season)}</b><span class="muted">${se.note}</span></div>
       <div class="stat">船団 ${G.Fleet.ships(s).length}隻（速さ${G.Fleet.speed(s)}・強さ${G.Fleet.strength(s)}）<b>積荷 ${G.cargoTotal(s)} / ${G.capacity(s)}</b></div>
       <div class="stat">積荷<span>${Object.keys(D.goods).filter(g => s.cargo[g]).map(g => `<span title="${D.goods[g].name}">${D.goods[g].icon}${s.cargo[g]}</span>`).join('　') || '<span class="muted">空</span>'}</span></div>
-      <div class="stat">仲間 ${s.party.length}人<span class="faces">${s.party.map(p => G.Portrait.svg(p, 26)).join('')}</span></div>
+      <div class="stat">仲間 ${s.party.length}人・水夫 ${s.sailors}人<span class="faces">${s.party.map(p => G.Portrait.svg(p, 26)).join('')}</span></div>
       <div class="stat">金貨<b>${s.coins}枚</b></div>
       <div class="stat">名声<b>${s.fame}</b></div>
       <div class="stat">知識<span>${known}</span></div>`;
@@ -303,7 +303,7 @@
 
   function shipStats(type) {
     const sd = D.ships[type];
-    return `積荷${sd.capacity}・速さ${sd.speed}・強さ${sd.strength}・船室${sd.cabins.length}`;
+    return `積荷${sd.capacity}・速さ${sd.speed}・強さ${sd.strength}・船室${sd.cabins.length}・人手${sd.crew || 0}人`;
   }
 
   // 船室の席。座っている人と、座らせられる人を選ぶ
@@ -352,7 +352,8 @@
 
   function shipsView(s) {
     const F = G.Fleet, id = s.townId;
-    let html = `<div class="card"><b>船室の効果</b><br><span class="small">${bonusText(s)}</span></div><h3>船団</h3>`;
+    let html = `<div class="card"><b>船室の効果</b><br><span class="small">${bonusText(s)}</span>
+      <br><span class="small ${F.crewFactor(s) < 1 ? 'bad' : ''}">人手 ${F.crewHave(s)} / ${F.crewNeed(s)}人（仲間${s.party.length}・水夫${s.sailors}）${F.crewFactor(s) < 1 ? '　足りないので船足が落ちている。水夫は酒場で雇える' : ''}</span></div><h3>船団</h3>`;
     for (const sh of F.ships(s)) {
       html += `<div class="card">
         <div class="row"><div><b>${F.shipName(sh)}</b>　<span class="muted small">${shipStats(sh.type)}</span></div>
@@ -448,22 +449,29 @@
   // ---------- 好感度 ----------
   function loveBar(s, id) {
     if (!G.Bonds.canBond(s, id)) return '';
-    const b = G.Bonds.get(s, id), next = D.bondStages[b.stage];
+    const B = G.Bonds, b = B.get(s, id), p = B.person(s, id);
+    const next = D.bondStages[b.stage] && (p.sex === 'f' || !D.bondStages[b.stage].lover) ? D.bondStages[b.stage] : null;
+    const hint = next ? `${next.at}で「${next.name}」` : B.isLover(s, id) && !b.married ? `${R.marryAt}で結婚を申し込める` : '';
+    const tags = (b.married ? '<span class="tag love">♥ 妻</span>' : B.isLover(s, id) ? '<span class="tag love">♥ 恋人</span>' : '')
+      + (G.Family.pregnant(s, id) ? '<span class="tag hi">身ごもっている</span>' : '');
     return `<div class="love-row"><span class="heart">♥</span><div class="bar love"><div style="width:${b.love}%"></div></div>
-      <span class="small">${b.love}　<b>${G.Bonds.stageName(s, id)}</b>${next ? `<span class="muted">（${next.at}で「${next.name}」）</span>` : ''}</span></div>`;
+      <span class="small">${b.love}　<b>${B.stageName(s, id)}</b>${hint ? `<span class="muted">（${hint}）</span>` : ''}</span>${tags}</div>`;
   }
 
-  // 話す・贈り物などのボタン。treat はおごる（酒場だけ）
+  // 話す・贈り物などのボタン。treat はおごる（酒場だけ）。恋人とはデート、好感度が十分なら結婚の申し込み
   function bondButtons(s, id, treat) {
-    const b = G.Bonds.get(s, id), p = G.Bonds.person(s, id), now = s.season;
+    const B = G.Bonds, b = B.get(s, id), p = B.person(s, id), now = s.season;
     const gifts = Object.keys(D.goods).filter(g => s.cargo[g] > 0);
     const opts = gifts.map(g => `<option value="${g}">${D.goods[g].icon}${D.goods[g].name}（${s.cargo[g]}）${(p.likes || []).includes(g) ? ' ♥好物' : ''}</option>`).join('');
+    const lover = B.isLover(s, id), proposeErr = B.canPropose(s, id);
     return `<div class="buttons bond-buttons">
       <button data-act="talk" data-id="${id}" ${b.talked === now ? 'disabled' : ''}>話す</button>
       ${treat ? `<button data-act="treat" data-id="${id}" ${b.treated === now ? 'disabled' : ''}>一杯おごる（恩−${R.treatCost}）</button>` : ''}
+      ${lover ? `<button class="love-btn" data-act="date" data-id="${id}" ${b.dated === now ? 'disabled' : ''}>♥ デートする</button>` : ''}
       ${gifts.length ? `<select id="gift-${id}">${opts}</select><button data-act="gift" data-id="${id}" ${b.gifted === now ? 'disabled' : ''}>贈る</button>` : ''}
     </div>
-    <div class="small muted">好きな物: ${(p.likes || []).map(g => D.goods[g].icon + D.goods[g].name).join('・') || '—'}　（話す・おごる・贈るは、それぞれ一季節に一度）</div>`;
+    ${lover && !b.married ? (proposeErr ? `<div class="small muted">結婚: ${proposeErr}</div>` : `<div class="buttons"><button class="primary love-btn" data-act="propose" data-id="${id}">💍 結婚を申し込む（${D.goods[B.weddingGift(s)].name}を贈る）</button></div>`) : ''}
+    <div class="small muted">好きな物: ${(p.likes || []).map(g => D.goods[g].icon + D.goods[g].name).join('・') || '—'}　（話す・おごる・贈る・デートは、それぞれ一季節に一度）</div>`;
   }
 
   function chatBubble(s) {
@@ -483,8 +491,32 @@
       html += personCard(s, m, `<div class="small muted">いまの持ち場: ${where}</div>
         ${m.id === 'you' ? '' : loveBar(s, m.id) + bondButtons(s, m.id, false)}`);
     }
-    html += `<p class="muted small">戦いには仲間全員が加わる。仲間が多いほど旅の保存食も多く要る（いま1季節 ${F.foodPerSeason(s)}）。持ち場は「船と船室」で決める。
-      得意な船室（適性★4以上）に座らせると季節ごとに、一緒に戦いに勝つと、好感度が上がる。好感度が節目に届くと出来事が起き、強さや適性が伸びる。新しい仲間は酒場で探せる。</p>`;
+    html += familyView(s);
+    html += `<p class="muted small">戦いには仲間全員と水夫（${R.sailorBattleMax}人まで）が加わる。人が多いほど旅の保存食も多く要る（いま1季節 ${F.foodPerSeason(s)}）。持ち場は「船と船室」で決める。
+      得意な船室（適性★4以上）に座らせると季節ごとに、一緒に戦いに勝つと、好感度が上がる。好感度が節目に届くと出来事が起き、強さや適性が伸びる。
+      「恋人」になるとデートができ、好感度が${R.marryAt}に届くと${R.weddingGifts.map(g => D.goods[g].name).join('か')}を贈って結婚を申し込める。新しい仲間は酒場で探せる。</p>`;
+    return html;
+  }
+
+  // 家族（妻と、仲間になる前の子供たち）
+  function familyView(s) {
+    const B = G.Bonds, Fa = G.Family;
+    const wives = Object.keys(s.bonds).filter(id => B.isWife(s, id));
+    if (!wives.length && !s.children.length) return '';
+    let html = '<h3>家族</h3>';
+    if (wives.length) {
+      html += `<p class="small">妻: ${wives.map(id => {
+        const p = B.person(s, id), where = G.Fleet.member(s, id) ? '船' : D.towns[Object.keys(D.towns).find(t => (D.towns[t].tavern || {}).girl === id)]?.name || '港';
+        return `${p.name}（${where}${Fa.pregnant(s, id) ? '・身ごもっている' : ''}）`;
+      }).join('、')}</p>`;
+    }
+    for (const c of s.children) {
+      const mother = B.person(s, c.mother);
+      html += `<div class="card person">${G.Portrait.svg(c, 48)}<div class="person-body">
+        <div><b>${c.name}</b>　<span class="muted small">${c.sex === 'f' ? '娘' : '息子'}・${Math.floor(c.age)}歳・母 ${mother.name}</span></div>
+        <div class="small muted">あと${Fa.seasonsToJoin(s, c)}季節ほどで、仲間として船に乗る。${G.Fleet.bonus(s).nursery > 0 ? '保育室で元気に育っている。' : '保育室に人を座らせると早く育つ。'}</div>
+      </div></div>`;
+    }
     return html;
   }
 
@@ -547,6 +579,13 @@
         html += '<p class="muted small">酒場の娘と話すと、ほかの村の相場や、まだ知らない港の噂を聞ける。</p>';
       }
     }
+    const coin = E().usesCoins(s, s.townId), price = F.sailorPrice(s);
+    html += `<h3>水夫</h3><div class="card">
+      <p>いま水夫 <b>${s.sailors}人</b>・仲間 ${s.party.length}人。船団を動かすのに <b>${F.crewNeed(s)}人</b>要る${F.crewFactor(s) < 1 ? '　<span class="bad">人手が足りず、船足が落ちている</span>' : ''}</p>
+      <div class="buttons"><button class="primary" data-act="hire">${R.sailorHire}人雇う（${coin ? `金貨${price}枚` : `恩−${price}`}）</button>
+        <button data-act="dismiss" ${s.sailors ? '' : 'disabled'}>${R.sailorHire}人に暇を出す</button></div>
+      <p class="muted small">水夫は名前のない船乗り。船を動かし、戦いにも${R.sailorBattleMax}人まで加わる。1人が1季節に保存食を${R.sailorFood}食べる。戦いに負けるとさらわれることがある。</p>
+    </div>`;
     const rs = F.recruits(s);
     html += '<h3>酒場にいる、仲間になってくれそうな人</h3>';
     if (!rs.length) html += '<p class="muted">いまはいない。</p>';
@@ -563,11 +602,19 @@
     const el = $('#dialog');
     const ev = s.pendingEvents && s.pendingEvents[0];
     if (!ev || G.battle) { el.innerHTML = ''; el.className = ''; return; }
-    const p = G.Bonds.person(s, ev.who), st = D.bondStages[ev.stage];
-    const lines = (G.Bonds.story(ev.who).events[ev.stage] || []).map(l => l.replace(/\{name\}/g, p.name));
+    const B = G.Bonds, kind = ev.kind || 'stage';
+    // 生まれた・育った子供の出来事では、子供の顔を出す
+    const child = ev.child ? B.person(s, ev.child) : kind === 'grown' ? B.person(s, ev.who) : null;
+    const mother = kind === 'grown' ? B.person(s, child.mother) : B.person(s, ev.who);
+    const face = kind === 'grown' ? child : mother;
+    const story = B.story(mother.id), gen = D.stories.generic;
+    const raw = kind === 'stage' ? story.events[ev.stage] : story[kind] || gen[kind];
+    const lines = (raw || []).map(l => l.replace(/\{name\}/g, mother.name).replace(/\{child\}/g, child ? child.name : ''));
+    const label = { stage: D.bondStages[ev.stage || 0].name, wedding: '結婚', birth: '誕生', grown: '旅立ち' }[kind];
     el.className = 'open';
     el.innerHTML = `<div class="dialog-card">
-      <div class="dialog-head">${G.Portrait.svg(p, 120)}<div><div class="muted small">${p.role}</div><h2>${p.name}</h2><div class="tag hi">♥ ${st.name}</div></div></div>
+      <div class="dialog-head">${G.Portrait.svg(face, 120)}${kind === 'birth' ? G.Portrait.svg(child, 72) : ''}
+        <div><div class="muted small">${face.role || (face.sex === 'f' ? '娘' : '息子')}</div><h2>${face.name}</h2><div class="tag hi">♥ ${label}</div></div></div>
       <div class="dialog-lines">${lines.map(l => `<p class="${l.startsWith('「') ? 'say' : 'narr'}">${l}</p>`).join('')}</div>
       <p class="small good">${ev.reward}</p>
       <div class="buttons"><button class="primary" data-act="event-next">続ける</button></div>
@@ -666,7 +713,8 @@
   // ---------- 戦い ----------
   function battleSide() {
     const bt = G.battle, b = D.raiders[bt.band];
-    const mine = bt.units.filter(u => u.side === 'me');
+    const mine = bt.units.filter(u => u.side === 'me' && !u.sailor);
+    const sailors = bt.units.filter(u => u.sailor);
     const foes = bt.units.filter(u => u.side === 'foe');
     const speeds = [1, 2, 4].map(n =>
       `<button class="mini ${G.BattleView.speed === n ? 'on' : ''}" data-act="bspeed" data-n="${n}">×${n}</button>`).join('');
@@ -674,6 +722,7 @@
       <h2>水上戦　<span class="muted small">${b.name}</span></h2>
       <p class="small muted">船を横づけにして打ち合う。舳先に座る人は強く打ち、船長たちの統率で全員の力が上がる。　早送り ${speeds}</p>
       <div id="roster">${roster(mine)}</div>
+      ${sailors.length ? `<p class="small muted" id="sailor-count">水夫 ${sailors.filter(u => !u.ko).length} / ${sailors.length}人</p>` : ''}
       <p class="small muted">水族 ${foes.filter(u => !u.ko).length} / ${foes.length}人</p>`;
   }
 
@@ -686,7 +735,9 @@
 
   function renderBattleSide() {
     const el = $('#roster');
-    if (el && G.battle) el.innerHTML = roster(G.battle.units.filter(u => u.side === 'me'));
+    if (el && G.battle) el.innerHTML = roster(G.battle.units.filter(u => u.side === 'me' && !u.sailor));
+    const sc = $('#sailor-count');
+    if (sc && G.battle) { const su = G.battle.units.filter(u => u.sailor); sc.textContent = `水夫 ${su.filter(u => !u.ko).length} / ${su.length}人`; }
   }
 
   function startBattle(s) {
@@ -839,6 +890,10 @@
         return act(() => G.Bonds.gift(s, b.dataset.id, sel && sel.value));
       }
       case 'invite': return act(() => G.Bonds.invite(s, b.dataset.id));
+      case 'date': return act(() => G.Bonds.date(s, b.dataset.id));
+      case 'propose': return act(() => G.Bonds.propose(s, b.dataset.id));
+      case 'hire': return act(() => F.hireSailors(s));
+      case 'dismiss': return act(() => F.dismissSailors(s));
       case 'event-next': s.pendingEvents.shift(); G.save(s); break;
       case 'fight': return startBattle(s);
       case 'flee':

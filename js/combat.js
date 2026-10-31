@@ -43,7 +43,9 @@
   };
 
   // 見立て用のおおまかな戦力
-  C.myPower = s => s.party.reduce((a, m) => a + m.str, 0) + G.Fleet.strength(s) * R.shipPower;
+  C.myPower = s => s.party.reduce((a, m) => a + m.str, 0) + battleSailors(s) * R.sailorStr + G.Fleet.strength(s) * R.shipPower;
+  const battleSailors = s => Math.min(s.sailors, R.sailorBattleMax);
+  const SAILOR_LOOK = { skin: '#b5835a', hair: '#2b1d14', style: 'short', paint: 'none', cloth: '#7a6a52', beard: false, acc: 'none' };
   C.enemyPower = e => e.members.reduce((a, m) => a + m.str, 0) + D.raiders[e.band].ship * R.shipPower;
 
   C.fleeChance = function (s, e) {
@@ -70,10 +72,15 @@
     const myAtk = (1 + str * R.shipAtk) * bonus.combat, myGuard = 1 - Math.min(0.35, str * R.shipGuard);
     const foeAtk = 1 + b.ship * R.shipAtk, foeGuard = 1 - Math.min(0.35, b.ship * R.shipGuard);
     const hp = st => R.unitHp[0] + st * R.unitHp[1];
+    const nSail = battleSailors(s), mine = s.party.length + nSail;
     const units = [
-      ...s.party.map((m, i) => unit('me', i, s.party.length, {
+      ...s.party.map((m, i) => unit('me', i, mine, {
         id: m.id, name: m.name, look: m.look, age: m.age, sex: m.sex,
         hp: hp(m.str), atk: m.str * R.unitAtk * myAtk * bonus.bow(m.id), guard: myGuard,
+      })),
+      ...Array.from({ length: nSail }, (_, i) => unit('me', s.party.length + i, mine, {
+        id: 'sailor' + i, name: '水夫', sailor: true, look: SAILOR_LOOK, age: 25, sex: 'm',
+        hp: hp(R.sailorStr), atk: R.sailorStr * R.unitAtk * myAtk, guard: myGuard,
       })),
       ...e.members.map((m, i) => unit('foe', i, e.members.length, {
         id: 'foe' + i, name: '水族', look: m.look, age: 30,
@@ -178,7 +185,9 @@
       parts.push(`${D.goods[g].name}${n}`);
     }
     s.stats.losses++;
-    const msg = `${b.name}に負けた……${parts.length ? parts.join('、') + 'を奪われた。' : '奪われる物は何もなかった。'}気を失った仲間たちは、やがて起き上がった。`;
+    const lost = Math.ceil(s.sailors * R.sailorLoss);
+    s.sailors -= lost;
+    const msg = `${b.name}に負けた……${parts.length ? parts.join('、') + 'を奪われた。' : '奪われる物は何もなかった。'}${lost ? `水夫${lost}人がさらわれた。` : ''}気を失った仲間たちは、やがて起き上がった。`;
     G.log(s, msg);
     return msg;
   };

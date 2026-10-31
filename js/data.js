@@ -4,7 +4,7 @@
 window.Game = window.Game || {};
 
 Game.DATA = {
-  version: 6,
+  version: 7,
 
   // 地理。座標はすべて [経度, 緯度]。geo.js が地図の点（x, y）に直し、D.map を作る。
   //   kx, ky: 経度・緯度1度あたりの地図の点（1点はおよそ1.1km）
@@ -305,49 +305,51 @@ Game.DATA = {
     galley:  { name: '炊事場',   icon: '🔥', per: 0.06, desc: '食べ物を上手に分ける。適性1ごとに保存食の減りが6%少なくなる（最大半分）。' },
     hold:    { name: '荷物番',   icon: '📦', per: 3,    desc: '荷を上手に積む。適性1ごとに積める量が3増える。' },
     bow:     { name: '舳先',     icon: '🗡', per: 0.12, desc: '戦いの先頭に立つ。座る人は戦いで、適性1ごとに12%強く打てる。' },
+    nursery: { name: '保育室',   icon: '🍼', per: 0.1,  desc: '子供たちが船で一緒に旅をする。座る人の適性1ごとに子供の育ちが10%早くなり、母親たちとの仲も季節ごとに深まる。' },
   },
 
   // 船。船団の積荷の上限は乗っている船の capacity の合計、速さは一番遅い船、強さは合計。
+  //   crew: 動かすのに要る人数（水夫と仲間の合計）。足りないと船足が落ちる
   //   cabins: 船室の並び。最初は必ず船長室
   //   build: 造れる船の注文内容。credit は依頼時に払う恩、materials は届ける材料、seasons は完成までの季節数
   //   requires: 造る村が持っていなければならない知識
   //   era: 造る村に必要な時代、size: 造る村に必要な大きさ（sizes の番号）
   ships: {
     canoe: {
-      name: '丸木舟', mode: 'sea', capacity: 20, speed: 1.0, strength: 1, era: 1,
+      name: '丸木舟', mode: 'sea', capacity: 20, speed: 1.0, strength: 1, crew: 1, era: 1,
       cabins: ['captain'],
       desc: '一本の木をくりぬいた舟。軽く扱いやすい。',
       build: { credit: 10, materials: { wood: 8 }, seasons: 1 },
     },
     hide: {
-      name: '皮張り舟', mode: 'sea', capacity: 25, speed: 1.5, strength: 1, era: 1,
+      name: '皮張り舟', mode: 'sea', capacity: 25, speed: 1.5, strength: 1, crew: 2, era: 1,
       cabins: ['captain', 'lookout'],
       desc: '木の骨組みに革を張った軽い舟。とても速い。',
       requires: ['tanning'],
       build: { credit: 20, materials: { wood: 6, leather: 10 }, seasons: 1 },
     },
     war: {
-      name: '大丸木舟', mode: 'sea', capacity: 35, speed: 1.2, strength: 6, era: 1,
+      name: '大丸木舟', mode: 'sea', capacity: 35, speed: 1.2, strength: 6, crew: 8, era: 1,
       cabins: ['captain', 'bow', 'bow', 'oars', 'oars', 'lookout'],
       desc: '巨木から削り出した大きな舟。舳先が高く、水族の舟を押しのける。',
       build: { credit: 60, materials: { wood: 30, tar: 6 }, seasons: 2 },
     },
     twin: {
-      name: '双胴舟', mode: 'sea', capacity: 50, speed: 0.8, strength: 2, era: 2,
-      cabins: ['captain', 'lookout', 'oars', 'galley', 'hold'],
+      name: '双胴舟', mode: 'sea', capacity: 50, speed: 0.8, strength: 2, crew: 5, era: 2,
+      cabins: ['captain', 'lookout', 'oars', 'galley', 'hold', 'nursery'],
       desc: '丸木舟を二つ並べて板で結んだ舟。遅いがたくさん積め、船室も多い。',
       build: { credit: 30, materials: { wood: 20, rope: 6 }, seasons: 2 },
     },
     sail: {
-      name: '帆舟', mode: 'sea', capacity: 45, speed: 1.8, strength: 2, era: 2,
+      name: '帆舟', mode: 'sea', capacity: 45, speed: 1.8, strength: 2, crew: 4, era: 2,
       cabins: ['captain', 'lookout', 'oars', 'hold'],
       desc: '亜麻布の帆を張った舟。風をつかめば、漕ぐよりずっと速い。',
       requires: ['sailing'],
       build: { credit: 50, materials: { wood: 20, linen: 12, rope: 6 }, seasons: 2 },
     },
     long: {
-      name: '大交易船', mode: 'sea', capacity: 90, speed: 1.2, strength: 5, era: 3, size: 3,
-      cabins: ['captain', 'lookout', 'oars', 'oars', 'galley', 'hold', 'hold', 'bow'],
+      name: '大交易船', mode: 'sea', capacity: 90, speed: 1.2, strength: 5, crew: 12, era: 3, size: 3,
+      cabins: ['captain', 'lookout', 'oars', 'oars', 'galley', 'hold', 'hold', 'bow', 'nursery'],
       desc: '青銅の道具で板を削り合わせた大きな帆船。荷も人もたくさん乗る、大きな町でしか造れない船。',
       requires: ['sailing', 'bronze'],
       build: { credit: 100, materials: { wood: 40, linen: 10, bronzetool: 4 }, seasons: 3 },
@@ -362,72 +364,69 @@ Game.DATA = {
   // 好感度のイベント（stories.js）は大人（18歳以上）だけに起きる。
   people: {
     you:  { name: 'あなた', sex: 'm', role: '商人', age: 28, str: 5, bio: '黒い海を渡り歩く若い商人。',
-            apt: { captain: 3, lookout: 2, oars: 2, galley: 1, hold: 3, bow: 2 }, likes: [],
+            apt: { captain: 3, lookout: 2, oars: 2, galley: 1, hold: 3, bow: 2, nursery: 1 }, likes: [],
             look: { skin: '#c99a6e', hair: '#2b1d14', style: 'short', paint: 'none', cloth: '#8a5a2b', beard: false, acc: 'beads' } },
     ul:   { name: 'ウル', sex: 'f', role: '漕ぎ手', age: 20, str: 4, bio: '日に焼けた快活な娘。どこまででも漕いでいける。',
-            apt: { captain: 1, lookout: 3, oars: 5, galley: 1, hold: 2, bow: 3 }, likes: ['honey', 'shell'],
+            apt: { captain: 1, lookout: 3, oars: 5, galley: 1, hold: 2, bow: 3, nursery: 1 }, likes: ['honey', 'shell'],
             look: { skin: '#b07a50', hair: '#1a120c', style: 'pony', paint: 'stripes', cloth: '#5e6b3a', beard: false, acc: 'none' } },
-    nagi: { name: 'ナギ', sex: 'f', role: '炊事番', age: 58, str: 2, bio: '浜の村で長く台所を預かってきた。干し魚の扱いはだれにも負けない。',
-            apt: { captain: 2, lookout: 1, oars: 1, galley: 5, hold: 4, bow: 1 }, likes: ['salt', 'pottery'],
-            look: { skin: '#d2a77c', hair: '#9a9a9a', style: 'bun', paint: 'dots', cloth: '#a0522d', beard: false, acc: 'bone' } },
-    duru: { name: 'ドゥル', sex: 'f', role: '女戦士', age: 30, str: 8, bio: '槍を持たせれば男たちも敵わない大柄な女。口数は少ないが、甘いものに弱い。',
-            apt: { captain: 2, lookout: 1, oars: 3, galley: 1, hold: 2, bow: 5 }, likes: ['honey', 'copper'],
+    nagi: { name: 'ナギ', sex: 'f', role: '炊事番', age: 21, str: 2, bio: '浜の村の台所で育った娘。干し魚の扱いはだれにも負けず、口うるさいほど世話を焼く。',
+            apt: { captain: 2, lookout: 1, oars: 1, galley: 5, hold: 4, bow: 1, nursery: 5 }, likes: ['salt', 'pottery'],
+            look: { skin: '#d2a77c', hair: '#3a2416', style: 'bun', paint: 'dots', cloth: '#a0522d', beard: false, acc: 'bone' } },
+    duru: { name: 'ドゥル', sex: 'f', role: '女戦士', age: 24, str: 8, bio: '槍を持たせれば男たちも敵わない大柄な女。口数は少ないが、甘いものに弱い。',
+            apt: { captain: 2, lookout: 1, oars: 3, galley: 1, hold: 2, bow: 5, nursery: 1 }, likes: ['honey', 'copper'],
             look: { skin: '#8f5f3c', hair: '#140e0a', style: 'braid', paint: 'band', cloth: '#3f3a36', beard: false, acc: 'bone' } },
     mira: { name: 'ミラ', sex: 'f', role: '見張り', age: 18, str: 2, bio: '鷹の目をもつ娘。帆柱のてっぺんが好きで、きれいな物に目がない。',
-            apt: { captain: 1, lookout: 5, oars: 2, galley: 2, hold: 1, bow: 1 }, likes: ['shell', 'amber'],
+            apt: { captain: 1, lookout: 5, oars: 2, galley: 2, hold: 1, bow: 1, nursery: 2 }, likes: ['shell', 'amber'],
             look: { skin: '#d8b08a', hair: '#6b3b1c', style: 'twin', paint: 'none', cloth: '#4f7a94', beard: false, acc: 'feather' } },
     saka: { name: 'サカ', sex: 'm', role: '老舟長', age: 61, str: 4, bio: '若いころ海峡まで漕いだという老人。風と潮をよく知る。',
-            apt: { captain: 5, lookout: 3, oars: 2, galley: 2, hold: 3, bow: 2 }, likes: ['honey', 'wine'],
+            apt: { captain: 5, lookout: 3, oars: 2, galley: 2, hold: 3, bow: 2, nursery: 2 }, likes: ['honey', 'wine'],
             look: { skin: '#a8754e', hair: '#d8d8d8', style: 'long', paint: 'stripes', cloth: '#6b4423', beard: true, acc: 'beads' } },
     ama:  { name: 'アマ', sex: 'f', role: '漁師', age: 24, str: 4, bio: '網を打たせれば一番の漁師。からっとした性格で、だれとでもすぐ打ち解ける。',
-            apt: { captain: 2, lookout: 3, oars: 4, galley: 3, hold: 2, bow: 2 }, likes: ['salt', 'net'],
+            apt: { captain: 2, lookout: 3, oars: 4, galley: 3, hold: 2, bow: 2, nursery: 3 }, likes: ['salt', 'net'],
             look: { skin: '#c08a5c', hair: '#2a1b10', style: 'long', paint: 'none', cloth: '#5a7d6a', beard: false, acc: 'beads' } },
-    sena: { name: 'セナ', sex: 'f', role: '塩掘り', age: 33, str: 5, bio: '塩湖で荷を担いできた働き者。重い荷ほど燃える。',
-            apt: { captain: 2, lookout: 2, oars: 3, galley: 2, hold: 5, bow: 2 }, likes: ['food', 'cheese'],
+    sena: { name: 'セナ', sex: 'f', role: '塩掘り', age: 23, str: 5, bio: '塩湖で荷を担いできた働き者。重い荷ほど燃える。',
+            apt: { captain: 2, lookout: 2, oars: 3, galley: 2, hold: 5, bow: 2, nursery: 2 }, likes: ['food', 'cheese'],
             look: { skin: '#e0b994', hair: '#4a3020', style: 'bun', paint: 'none', cloth: '#d8cbb3', beard: false, acc: 'earring' } },
-    goru: { name: 'ゴラ', sex: 'f', role: '狩人', age: 26, str: 7, bio: '森の女狩人。弓も槍も使いこなし、獲物を追う目は鋭い。',
-            apt: { captain: 2, lookout: 4, oars: 2, galley: 2, hold: 1, bow: 4 }, likes: ['copper', 'obsidian'],
+    goru: { name: 'ゴラ', sex: 'f', role: '狩人', age: 22, str: 7, bio: '森の女狩人。弓も槍も使いこなし、獲物を追う目は鋭い。',
+            apt: { captain: 2, lookout: 4, oars: 2, galley: 2, hold: 1, bow: 4, nursery: 2 }, likes: ['copper', 'obsidian'],
             look: { skin: '#9a6a44', hair: '#1c140e', style: 'wild', paint: 'dots', cloth: '#4b5a2e', beard: false, acc: 'feather' } },
-    baru: { name: 'バルナ', sex: 'f', role: '川の戦士の頭', age: 35, str: 8, bio: '大河の戦士たちを率いる女頭。名の知れた者にしか従わない。',
-            apt: { captain: 4, lookout: 2, oars: 3, galley: 1, hold: 2, bow: 5 }, likes: ['copper', 'horse'],
+    baru: { name: 'バルナ', sex: 'f', role: '川の戦士の頭', age: 24, str: 8, bio: '大河の戦士たちを率いる女頭。名の知れた者にしか従わない。',
+            apt: { captain: 4, lookout: 2, oars: 3, galley: 1, hold: 2, bow: 5, nursery: 1 }, likes: ['copper', 'horse'],
             look: { skin: '#b5835a', hair: '#3a2a1e', style: 'braid', paint: 'band', cloth: '#7a2e22', beard: false, acc: 'bone' } },
     iri:  { name: 'イリ', sex: 'f', role: '舟乗り', age: 22, str: 5, bio: '海峡を行き来する舟乗り。どの舟でもすぐ乗りこなす、負けず嫌い。',
-            apt: { captain: 3, lookout: 3, oars: 4, galley: 2, hold: 3, bow: 2 }, likes: ['linen', 'gold'],
+            apt: { captain: 3, lookout: 3, oars: 4, galley: 2, hold: 3, bow: 2, nursery: 2 }, likes: ['linen', 'gold'],
             look: { skin: '#a77650', hair: '#120c08', style: 'short', paint: 'stripes', cloth: '#2f5e7a', beard: false, acc: 'earring' } },
-    toku: { name: 'トク', sex: 'm', role: '崖の見張り', age: 45, str: 6, bio: '崖の上から一日じゅう海を見てきた男。',
-            apt: { captain: 3, lookout: 5, oars: 2, galley: 2, hold: 2, bow: 3 }, likes: ['fur', 'food'],
-            look: { skin: '#c4946a', hair: '#5a5a5a', style: 'short', paint: 'none', cloth: '#6e6a5e', beard: true, acc: 'feather' } },
     yuna: { name: 'ユナ', sex: 'f', role: '薬師', age: 23, str: 2, bio: '大集落の研究者たちのもとで薬草と星を学んだ娘。物静かだが好奇心は人一倍。',
-            apt: { captain: 3, lookout: 3, oars: 1, galley: 4, hold: 3, bow: 1 }, likes: ['herbs', 'honey'],
+            apt: { captain: 3, lookout: 3, oars: 1, galley: 4, hold: 3, bow: 1, nursery: 4 }, likes: ['herbs', 'honey'],
             look: { skin: '#e6c39e', hair: '#3b2416', style: 'long', paint: 'dots', cloth: '#7d6a9a', beard: false, acc: 'flower' } },
     tia:  { name: 'ティア', sex: 'f', role: '星読み', age: 21, str: 3, bio: '海峡の町で、星の位置から舟の進む先を読む娘。夜の海を怖がらない。',
-            apt: { captain: 4, lookout: 5, oars: 2, galley: 1, hold: 2, bow: 1 }, likes: ['gold', 'incense'],
+            apt: { captain: 4, lookout: 5, oars: 2, galley: 1, hold: 2, bow: 1, nursery: 1 }, likes: ['gold', 'incense'],
             look: { skin: '#b98a62', hair: '#0e0a08', style: 'long', paint: 'none', cloth: '#2c3e6b', beard: false, acc: 'earring' } },
-    kaya: { name: 'カヤ', sex: 'f', role: '銅打ち', age: 27, str: 6, bio: '炉の火を守る銅打ちの娘。腕は太く、笑うと子供のよう。',
-            apt: { captain: 2, lookout: 1, oars: 3, galley: 3, hold: 4, bow: 4 }, likes: ['wood', 'honey'],
+    kaya: { name: 'カヤ', sex: 'f', role: '銅打ち', age: 23, str: 6, bio: '炉の火を守る銅打ちの娘。腕は太く、笑うと子供のよう。',
+            apt: { captain: 2, lookout: 1, oars: 3, galley: 3, hold: 4, bow: 4, nursery: 3 }, likes: ['wood', 'honey'],
             look: { skin: '#a46c45', hair: '#5a2a14', style: 'pony', paint: 'band', cloth: '#8b4a2a', beard: false, acc: 'beads' } },
 
     // 酒場の娘たち。酒場で話したり、おごったり、贈り物をしたりして仲良くなると、仲間に誘える。
     vela: { name: 'ヴェラ', sex: 'f', role: '湾の酒場の娘', age: 22, str: 3, bio: 'ヴァルナの湾の酒場の娘。塩と金の噂話なら何でも知っている、おしゃべりで世話焼きな娘。',
-            apt: { captain: 2, lookout: 3, oars: 2, galley: 4, hold: 3, bow: 1 }, likes: ['amber', 'wine'],
+            apt: { captain: 2, lookout: 3, oars: 2, galley: 4, hold: 3, bow: 1, nursery: 4 }, likes: ['amber', 'wine'],
             look: { skin: '#dcb08a', hair: '#5a2e1a', style: 'long', paint: 'none', cloth: '#b0703a', beard: false, acc: 'flower' } },
     lina: { name: 'リナ', sex: 'f', role: '葦原の酒場の娘', age: 19, str: 2, bio: '葦原村の酒場の看板娘。笑い上戸で、旅の話をせがむ。',
-            apt: { captain: 1, lookout: 3, oars: 2, galley: 4, hold: 3, bow: 1 }, likes: ['shell', 'honey'],
+            apt: { captain: 1, lookout: 3, oars: 2, galley: 4, hold: 3, bow: 1, nursery: 4 }, likes: ['shell', 'honey'],
             look: { skin: '#e2b994', hair: '#8a4b22', style: 'twin', paint: 'none', cloth: '#b5654a', beard: false, acc: 'flower' } },
     shio: { name: 'シオ', sex: 'f', role: '塩湖の酒場の娘', age: 24, str: 4, bio: '塩湖の酒場を一人で切り盛りする。きっぷがよく、酒にも強い。',
-            apt: { captain: 3, lookout: 2, oars: 3, galley: 3, hold: 4, bow: 2 }, likes: ['honey', 'linen'],
+            apt: { captain: 3, lookout: 2, oars: 3, galley: 3, hold: 4, bow: 2, nursery: 3 }, likes: ['honey', 'linen'],
             look: { skin: '#d4a57a', hair: '#2a1a10', style: 'bun', paint: 'none', cloth: '#e0d6c0', beard: false, acc: 'earring' } },
-    mede: { name: 'メデ', sex: 'f', role: '森の酒場の娘', age: 25, str: 3, bio: '森の酒場で薬草酒を醸す。妖しく笑うが、根は面倒見がいい。',
-            apt: { captain: 2, lookout: 2, oars: 1, galley: 5, hold: 2, bow: 2 }, likes: ['salt', 'shell'],
+    mede: { name: 'メデ', sex: 'f', role: '森の酒場の娘', age: 23, str: 3, bio: '森の酒場で薬草酒を醸す。妖しく笑うが、根は面倒見がいい。',
+            apt: { captain: 2, lookout: 2, oars: 1, galley: 5, hold: 2, bow: 2, nursery: 5 }, likes: ['salt', 'shell'],
             look: { skin: '#c99366', hair: '#1a0f0a', style: 'long', paint: 'dots', cloth: '#3e5a3a', beard: false, acc: 'flower' } },
     neri: { name: 'ネリ', sex: 'f', role: '川辺の酒場の娘', age: 20, str: 3, bio: '川辺の酒場で歌う娘。歌声を聞きに、遠くの村からも人が来る。',
-            apt: { captain: 1, lookout: 3, oars: 4, galley: 2, hold: 2, bow: 2 }, likes: ['salt', 'beads'],
+            apt: { captain: 1, lookout: 3, oars: 4, galley: 2, hold: 2, bow: 2, nursery: 2 }, likes: ['salt', 'beads'],
             look: { skin: '#e8c8a4', hair: '#c49a5a', style: 'braid', paint: 'none', cloth: '#5b7aa0', beard: false, acc: 'beads' } },
-    zara: { name: 'ザラ', sex: 'f', role: '海峡の酒場の娘', age: 26, str: 4, bio: '海峡の酒場の女主人。南の言葉も話し、遠い国の話をよく知っている。',
-            apt: { captain: 4, lookout: 2, oars: 2, galley: 3, hold: 3, bow: 2 }, likes: ['fur', 'gold'],
+    zara: { name: 'ザラ', sex: 'f', role: '海峡の酒場の娘', age: 24, str: 4, bio: '海峡の酒場の女主人。南の言葉も話し、遠い国の話をよく知っている。',
+            apt: { captain: 4, lookout: 2, oars: 2, galley: 3, hold: 3, bow: 2, nursery: 3 }, likes: ['fur', 'gold'],
             look: { skin: '#9e6c48', hair: '#0f0a07', style: 'long', paint: 'band', cloth: '#9a2f4a', beard: false, acc: 'earring' } },
     kara: { name: 'カラ', sex: 'f', role: '崖の酒場の娘', age: 21, str: 4, bio: '崖の村の酒場の娘。無口だが目が良く、沖の舟をだれより早く見つける。',
-            apt: { captain: 2, lookout: 5, oars: 3, galley: 2, hold: 1, bow: 3 }, likes: ['food', 'linen'],
+            apt: { captain: 2, lookout: 5, oars: 3, galley: 2, hold: 1, bow: 3, nursery: 2 }, likes: ['food', 'linen'],
             look: { skin: '#c79a70', hair: '#3a2416', style: 'short', paint: 'stripes', cloth: '#6a5a4a', beard: false, acc: 'feather' } },
   },
 
@@ -549,7 +548,6 @@ Game.DATA = {
       desc: '南の海岸、海に突き出た崖の上の村。岩の窪みで海水を干して塩をとり、大きな貝を削って飾りにする。土地がやせて食べ物に乏しい。',
       knowledge: ['shellcraft', 'preserving'],
       tavern: { name: '崖の上の酒場', girl: 'kara' },
-      recruits: [{ id: 'toku', fame: 15, cost: 35 }],
       goods: { salt: [30, 0.9], shell: [6, 1], beads: [4, 1], fish: [25, 0.9], food: [5, 1.4], wood: [6, 1.3], fur: [8, 1.2] },
     },
     bosporus: {
@@ -611,11 +609,11 @@ Game.DATA = {
   //   loot: 勝ったときに奪える品物の幅、fame: 勝ったときの名声
   //   cloth / paint: 戦いの画面での見た目
   raiders: {
-    small: { name: '水族の小舟',   count: [2, 3], str: [3, 5], ship: 1, speed: 1.0, fame: 3, cloth: '#2f4f4f', paint: 'stripes',
+    small: { name: '水族の小舟',   count: [3, 5], str: [3, 5], ship: 1, speed: 1.0, fame: 3, cloth: '#2f4f4f', paint: 'stripes',
              loot: { food: [3, 8], fish: [2, 6], fur: [0, 4] } },
-    band:  { name: '水族の舟団',   count: [4, 6], str: [4, 6], ship: 2, speed: 1.2, fame: 8, cloth: '#24434a', paint: 'band',
+    band:  { name: '水族の舟団',   count: [7, 10], str: [4, 6], ship: 2, speed: 1.2, fame: 8, cloth: '#24434a', paint: 'band',
              loot: { fur: [4, 10], salt: [3, 8], flint: [2, 6], hide: [2, 6] } },
-    chief: { name: '水族の長の大舟', count: [8, 10], str: [5, 8], ship: 5, speed: 1.1, fame: 20, cloth: '#1d2f3a', paint: 'band',
+    chief: { name: '水族の長の大舟', count: [13, 16], str: [5, 8], ship: 5, speed: 1.1, fame: 20, cloth: '#1d2f3a', paint: 'band',
              loot: { fur: [10, 20], shell: [2, 5], copper: [0, 3], amber: [0, 3] } },
   },
   // at は [経度, 緯度]、r は地図の点。rate は地図の4点進むごとに出会う確率。bands は出てくる相手の重み。
@@ -628,11 +626,18 @@ Game.DATA = {
 
   // 好感度の段階。好感度が at に届くと、その人のイベントが起き、ほうびがある。
   //   str: 強さ +1、apt: 一番得意な船室（5未満のもの）の適性 +1、join: 酒場の娘を仲間に誘えるようになる
+  //   lover: 恋人になる。恋人とはデートができ、好感度が rules.marryAt に届くと結婚を申し込める（恋人や妻の数に限りはない）
   bondStages: [
     { at: 20, name: '打ち解けた', str: 1 },
     { at: 45, name: '信頼',       apt: 1, join: true },
-    { at: 75, name: '絆',         str: 1, apt: 1 },
+    { at: 70, name: '恋人',       str: 1, apt: 1, lover: true },
   ],
+
+  // 子供の名前（生まれたとき、ここからまだ使っていない名前をつける）
+  childNames: {
+    f: ['ハナ', 'ソラ', 'ミオ', 'ユイ', 'ナオ', 'リコ', 'アヤ', 'サキ', 'ノア', 'エマ', 'ルカ', 'ミナ'],
+    m: ['タク', 'ハル', 'カイ', 'リク', 'ソウ', 'ジン', 'レン', 'トワ', 'ユウ', 'ケン', 'ナギト', 'アキ'],
+  },
 
   rules: {
     idealStock: 20,     // この在庫のとき価値がちょうど base * mult になる
@@ -665,6 +670,22 @@ Game.DATA = {
     giftLikedLove: 7,   // 好きな品物を贈ったとき
     winLove: 2,         // 戦いに勝ったとき仲間全員の好感度
     cabinLove: 1,       // 得意な船室（適性4以上）にいる仲間の、1季節ごとの好感度
+    // 恋人・結婚・子供
+    dateLove: [4, 7],   // デートで上がる好感度（恋人・妻と、一季節に一度）
+    marryAt: 90,        // この好感度で結婚を申し込める
+    weddingGifts: ['gold', 'amber', 'silver'], // 結婚を申し込むときに贈る品（どれか一つ）
+    childChance: 0.3,   // 妻とデートしたあと子供ができる確率
+    pregnancySeasons: 3, // 子供ができてから生まれるまでの季節数
+    childGrowth: 1,     // 子供が1季節に育つ年数（ゲームの都合で早い）
+    childJoinAge: 16,   // この年になると仲間として船に乗る
+    nurseryLove: 1,     // 保育室があるとき、母親たちの1季節ごとの好感度
+    // 水夫（名前のない船乗り。人数だけで数える）
+    sailorFood: 0.5,    // 水夫1人が1季節に食べる保存食
+    sailorStr: 2,       // 戦いでの水夫の強さ
+    sailorBattleMax: 8, // 戦いに出る水夫の上限（残りは船を守る）
+    sailorHire: 5,      // 一度に雇う人数
+    sailorCost: 2,      // 1人を雇う恩（金貨の町では金貨）
+    sailorLoss: 0.2,    // 戦いに負けたときに失う水夫の割合
     // 外海の航行（地図の1点はおよそ1.1km）
     seaPerSeason: 350,  // 速さ1の船団が1季節で漕げる距離（地図の点の数）
     upstream: 0.6,      // 川をさかのぼるときの船足の倍率
@@ -695,6 +716,7 @@ Game.DATA = {
     town: 'varna',
     cargo: { food: 30, grain: 8, fish: 8, fur: 8, salt: 8, wood: 6, flint: 4, honey: 4, pottery: 4 },
     coins: 30,
+    sailors: 8,
     fame: 10,
     knowledge: [],
     party: ['you', 'ul', 'nagi', 'duru', 'mira', 'saka'],
@@ -708,6 +730,7 @@ Game.DATA = {
     town: 'varna',
     cargo: { food: 10 },
     coins: 0,
+    sailors: 0,
     fame: 0,
     knowledge: [],
     party: ['you', 'ul'],

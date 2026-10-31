@@ -1,8 +1,10 @@
 // 好感度と酒場。
 // 仲間や酒場の娘と話す・おごる・贈り物をすると好感度が上がる。得意な船室に座らせたり、一緒に戦いに勝っても上がる。
 // 好感度が data.js の bondStages に届くとイベント（stories.js）が起き、強さや適性が伸びる。
-// 酒場の娘は「信頼」の段階まで仲良くなると仲間に誘える。イベントは大人（18歳以上）だけ。
-// 状態は s.bonds[人の id] = { love, stage, talked, treated, gifted, later }、起きたイベントは s.pendingEvents に積まれ、画面が順に見せる。
+// 酒場の娘は「信頼」の段階まで仲良くなると仲間に誘える。「恋人」になるとデートができ、もっと仲良くなると結婚を申し込める。
+// 恋人や妻の数に限りはない。好感度もイベントも大人（18歳以上）だけで、自分の子供は家族として扱い、恋の相手にはならない。
+// 状態は s.bonds[人の id] = { love, stage, married, talked, treated, gifted, dated, later }、
+// 起きたイベントは s.pendingEvents（{ kind: stage / wedding / birth / grown, who, ... }）に積まれ、画面が順に見せる。
 (function () {
   const G = window.Game;
   const D = G.DATA;
@@ -14,11 +16,18 @@
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   const fail = msg => ({ ok: false, msg });
 
-  B.get = (s, id) => s.bonds[id] || (s.bonds[id] = { love: 0, stage: 0, talked: -1, treated: -1, gifted: -1, later: [] });
-  B.person = (s, id) => G.Fleet.member(s, id) || { id, ...D.people[id] };
+  B.get = (s, id) => s.bonds[id] || (s.bonds[id] = { love: 0, stage: 0, talked: -1, treated: -1, gifted: -1, dated: -1, later: [] });
+  B.person = (s, id) => G.Fleet.member(s, id) || s.children.find(c => c.id === id) || { id, ...D.people[id] };
   B.story = id => D.stories[id] || D.stories.generic;
-  B.canBond = (s, id) => id !== 'you' && B.person(s, id).age >= 18;
-  B.stageName = (s, id) => { const b = B.get(s, id); return b.stage ? D.bondStages[b.stage - 1].name : '知り合い'; };
+  // 好感度があるのは大人（18歳以上）だけ。自分の子供（family）は家族で、恋の相手にはならない
+  B.canBond = (s, id) => { const p = B.person(s, id); return id !== 'you' && !p.family && p.age >= 18; };
+  B.isLover = (s, id) => D.bondStages.slice(0, B.get(s, id).stage).some(st => st.lover);
+  B.isWife = (s, id) => !!B.get(s, id).married;
+  B.stageName = (s, id) => {
+    const b = B.get(s, id);
+    if (b.married) return '妻';
+    return b.stage ? D.bondStages[b.stage - 1].name : '知り合い';
+  };
 
   // 一番得意な船室（まだ5に届いていないもの）
   function bestApt(p) {
@@ -37,6 +46,7 @@
     if (st.str) out.push(`強さ +${st.str}`);
     if (st.apt) { const k = bestApt(p); if (k) out.push(`${D.cabins[k].name}の適性 +${st.apt}`); }
     if (st.join && !p.inParty) out.push('仲間に誘えるようになった');
+    if (st.lover) out.push('恋人になった。デートができる');
     return out.join('・');
   }
 
@@ -44,7 +54,9 @@
     if (!B.canBond(s, id)) return 0;
     const b = B.get(s, id), before = b.love;
     b.love = Math.max(0, Math.min(100, b.love + n));
-    while (b.stage < D.bondStages.length && b.love >= D.bondStages[b.stage].at) reach(s, id, b.stage++);
+    // 恋人の段階は女性だけ（男の仲間とは「信頼」までの友情）
+    const female = B.person(s, id).sex === 'f';
+    while (b.stage < D.bondStages.length && b.love >= D.bondStages[b.stage].at && (female || !D.bondStages[b.stage].lover)) reach(s, id, b.stage++);
     return b.love - before;
   };
 
@@ -54,7 +66,7 @@
     const reward = rewardText(p, st);
     const eff = { str: st.str, apt: st.apt };
     if (m) apply(m, eff); else b.later.push(eff);
-    s.pendingEvents.push({ who: id, stage: i, reward });
+    s.pendingEvents.push({ kind: 'stage', who: id, stage: i, reward });
     G.log(s, `${p.name}との仲が「${st.name}」になった。（${reward}）`);
   }
 
@@ -95,6 +107,51 @@
     const n = B.add(s, id, liked ? R.giftLikedLove : R.giftLove);
     const text = liked ? `「${D.goods[g].name}！ずっと欲しかったの。……大事にするね」` : `「${D.goods[g].name}？ありがとう」`;
     return { ok: true, msg: '', chat: { who: id, text, love: n } };
+  };
+
+  // ---------- 恋人と妻 ----------
+  // デート。恋人か妻と、港で一季節に一度。妻とのデートのあと、子供ができることがある（family.js）
+  B.canDate = function (s, id) {
+    if (!B.isLover(s, id)) return '恋人になるとデートできる';
+    if (!B.here(s, id)) return 'ここにはいない';
+    if (B.get(s, id).dated === s.season) return 'この季節はもうデートした';
+    return null;
+  };
+
+  B.date = function (s, id) {
+    const err = B.canDate(s, id);
+    if (err) return fail(err);
+    const b = B.get(s, id), p = B.person(s, id);
+    b.dated = s.season;
+    const n = B.add(s, id, rand(R.dateLove));
+    let text = pick(B.story(id).date || D.stories.generic.date).replace(/\{name\}/g, p.name).replace(/\{town\}/g, D.towns[s.townId].name);
+    if (b.married && G.Family.conceive(s, id)) text += `\n「……ねえ。もしかしたら、赤ちゃんができたかもしれない」`;
+    return { ok: true, msg: '', chat: { who: id, text, love: n } };
+  };
+
+  // 結婚を申し込む。好感度が marryAt に届いた恋人に、weddingGifts のどれかを贈る
+  B.weddingGift = s => R.weddingGifts.find(g => s.cargo[g] > 0);
+  B.canPropose = function (s, id) {
+    const b = B.get(s, id);
+    if (b.married) return 'もう妻';
+    if (!B.isLover(s, id)) return '恋人になると結婚を申し込める';
+    if (b.love < R.marryAt) return `好感度が${R.marryAt}になると結婚を申し込める`;
+    if (!B.here(s, id)) return 'ここにはいない';
+    if (!B.weddingGift(s)) return `結婚の贈り物（${R.weddingGifts.map(g => D.goods[g].name).join('か')}）を持っていない`;
+    return null;
+  };
+
+  B.propose = function (s, id) {
+    const err = B.canPropose(s, id);
+    if (err) return fail(err);
+    const b = B.get(s, id), p = B.person(s, id), g = B.weddingGift(s);
+    s.cargo[g]--;
+    b.married = true;
+    b.marriedAt = s.season;
+    b.love = 100;
+    s.pendingEvents.push({ kind: 'wedding', who: id, reward: `${D.goods[g].name}を贈り、${p.name}と結ばれた。デートのあとに子供ができることがある` });
+    G.log(s, `${p.name}に${D.goods[g].name}を贈って結婚を申し込み、夫婦になった。`);
+    return { ok: true, msg: '' };
   };
 
   // 酒場の娘を仲間に誘う
@@ -153,12 +210,16 @@
     return pick(out);
   };
 
-  // 得意な船室にいる仲間は、季節ごとに少しずつ打ち解ける
+  // 得意な船室にいる仲間は、季節ごとに少しずつ打ち解ける。保育室があれば、船にいる母親たちとの仲も深まる
   G.onSeason.push(s => {
     for (const sh of G.Fleet.ships(s)) {
       sh.seats.forEach((id, i) => {
-        if (id && id !== 'you' && G.Fleet.member(s, id).apt[G.Fleet.cabinOf(sh, i)] >= 4) B.add(s, id, R.cabinLove);
+        if (id && id !== 'you' && (G.Fleet.member(s, id).apt[G.Fleet.cabinOf(sh, i)] || 0) >= 4) B.add(s, id, R.cabinLove);
       });
+    }
+    if (G.Fleet.bonus(s).nursery > 0) {
+      const mothers = new Set(s.children.map(c => c.mother));
+      for (const id of mothers) if (G.Fleet.member(s, id)) B.add(s, id, R.nurseryLove);
     }
   });
 })();

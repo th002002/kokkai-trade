@@ -22,6 +22,9 @@
       nextId: 1,
       fame: D.start.fame || 0,
       coins: D.start.coins || 0, // 金貨（青銅器時代からの村で使える。積荷の場所はとらない）
+      sailors: D.start.sailors || 0, // 水夫の人数（名前のない船乗り）
+      children: [],   // 仲間になる前の子供たち（family.js）
+      pregnancies: [], // { mother, due: 生まれる季節 }
       towns: {},
       memo: {},
       discovered: Object.keys(D.towns).filter(id => !D.towns[id].hidden),

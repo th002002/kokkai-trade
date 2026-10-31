@@ -189,6 +189,9 @@ select { font: inherit; color: var(--ink); background: var(--panel); border: 1px
 
 /* 好感度 */
 .heart { color: #d5486b; }
+.tag.love { background: #d5486b; color: #fff; }
+button.love-btn { border-color: #d5486b; }
+button.primary.love-btn { background: #d5486b; color: #fff; }
 .love-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
 .bar.love { flex: 0 0 120px; height: 8px; }
 .bar.love div { background: #d5486b; }

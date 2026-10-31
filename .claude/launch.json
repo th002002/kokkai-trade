@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "game",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "C:\\Users\\thara\\AppData\\Local\\Temp\\claude\\C--Users-thara--claude-spares-spare-c3joMe\\c230c1b5-8d30-4206-a122-9fde2c7c9f72\\scratchpad\\serve.ps1", "-Root", "C:\\Users\\thara\\Desktop\\game"],
+      "port": 8765
+    }
+  ]
+}

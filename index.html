@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>黒い海の交易者</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>黒い海の交易者</h1>
+    <button data-act="new" class="small-btn">最初から</button>
+  </header>
+  <section id="header" class="status"></section>
+  <main>
+    <section id="map" class="panel"></section>
+    <section id="town" class="panel"></section>
+  </main>
+  <section id="log" class="panel log"></section>
+  <div id="dialog"></div>
+
+  <!-- 読み込み順: データ → 基盤 → 各システム → 画面 → 起動 -->
+  <script src="js/data.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/stories.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/economy.js"></script>
+  <script src="js/civ.js"></script>
+  <script src="js/bonds.js"></script>
+  <script src="js/knowledge.js"></script>
+  <script src="js/fleet.js"></script>
+  <script src="js/travel.js"></script>
+  <script src="js/sea.js"></script>
+  <script src="js/combat.js"></script>
+  <script src="js/portrait.js"></script>
+  <script src="js/seaview.js"></script>
+  <script src="js/battleview.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

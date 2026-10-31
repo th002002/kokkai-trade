@@ -110,7 +110,7 @@ main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap:
 button.mini.on { background: var(--accent); color: var(--accent-ink); }
 
 .faces { display: flex; gap: 2px; }
-.portrait { flex: none; border-radius: 50%; }
+.portrait { flex: none; border-radius: 4px; }
 .person { display: flex; gap: 10px; align-items: flex-start; }
 .person-body { flex: 1; min-width: 0; }
 .apts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 10px; font-size: 12px; margin: 4px 0; }

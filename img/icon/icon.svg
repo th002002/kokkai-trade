@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>黒い海の交易者</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b2f4a"/>
+      <stop offset="0.45" stop-color="#b8563a"/>
+      <stop offset="1" stop-color="#f0a65a"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b4a5c"/>
+      <stop offset="1" stop-color="#0f1c25"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff1c9"/>
+      <stop offset="0.7" stop-color="#ffd27a"/>
+      <stop offset="1" stop-color="#f6b25c"/>
+    </radialGradient>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <!-- 夕空 -->
+    <rect width="512" height="300" fill="url(#sky)"/>
+    <!-- 沈む日 -->
+    <circle cx="256" cy="292" r="104" fill="url(#sun)"/>
+    <!-- 黒い海 -->
+    <rect y="290" width="512" height="222" fill="url(#sea)"/>
+    <!-- 海に映る日 -->
+    <g fill="#ffd27a">
+      <rect x="176" y="304" width="160" height="9" rx="4.5" opacity="0.75"/>
+      <rect x="200" y="326" width="112" height="8" rx="4" opacity="0.55"/>
+      <rect x="222" y="347" width="68" height="7" rx="3.5" opacity="0.35"/>
+    </g>
+    <!-- 波 -->
+    <g fill="none" stroke="#6f97b0" stroke-width="9" stroke-linecap="round" opacity="0.7">
+      <path d="M44 432 q26 -16 52 0 t52 0"/>
+      <path d="M364 448 q26 -16 52 0 t52 0"/>
+      <path d="M150 478 q26 -16 52 0 t52 0 t52 0"/>
+    </g>
+    <!-- 丸木舟と積荷・漕ぎ手 -->
+    <g fill="#2a1b12">
+      <!-- 積荷：壺と包み -->
+      <path d="M232 318 c-14 0 -22 -14 -18 -30 c3 -12 10 -16 10 -24 h20 c0 8 7 12 10 24 c4 16 -4 30 -22 30z"/>
+      <rect x="219" y="256" width="30" height="9" rx="3"/>
+      <rect x="262" y="290" width="54" height="30" rx="8"/>
+      <path d="M268 290 q21 -18 42 0z"/>
+      <!-- 漕ぎ手（前） -->
+      <circle cx="340" cy="250" r="15"/>
+      <path d="M326 322 l4 -52 q10 -10 22 0 l6 52z"/>
+      <!-- 漕ぎ手（後ろ） -->
+      <circle cx="160" cy="246" r="15"/>
+      <path d="M146 322 l4 -52 q10 -10 22 0 l6 52z"/>
+      <!-- 舟 -->
+      <path d="M58 300 q14 6 40 10 h316 q26 -4 40 -10 q-4 34 -40 50 h-316 q-36 -16 -40 -50z"/>
+    </g>
+    <!-- 櫂 -->
+    <g stroke="#2a1b12" stroke-width="9" stroke-linecap="round">
+      <line x1="372" y1="262" x2="420" y2="372"/>
+      <line x1="192" y1="258" x2="236" y2="372"/>
+    </g>
+    <g fill="#2a1b12">
+      <ellipse cx="424" cy="384" rx="10" ry="22" transform="rotate(-24 424 384)"/>
+      <ellipse cx="240" cy="384" rx="10" ry="22" transform="rotate(-24 240 384)"/>
+    </g>
+    <!-- 舟べりの線 -->
+    <path d="M98 318 h316" stroke="#a0522d" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -167,7 +167,7 @@
       for (const g in e.cargo) {
         const n = Math.min(e.cargo[g], G.capacity(s) - G.cargoTotal(s));
         if (n <= 0) continue;
-        s.cargo[g] += n;
+        G.Economy.addCargo(s, g, n, 0); // 奪った品は仕入れ値ただ
         parts.push(`${D.goods[g].name}${n}`);
       }
       s.fame += b.fame;

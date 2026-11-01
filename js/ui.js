@@ -195,13 +195,18 @@
     const good = give ? E().goodSellCount(s, id, g) : E().goodBuyCount(s, id, g);
     // 得な数を越えたら知らせる（売りはほかで売れる値・ふつうの値を下回る、買いはほかで売っても儲からない）
     const slid = give ? last < good.floor : good.best ? last > good.best.v * 0.9 : last > first * 1.3;
-    const where = good.best ? `${D.towns[good.best.town].name}で${fmt(good.best.v)}` : 'ふつうの値';
+    const where = good.best ? `${D.towns[good.best.town].name}で${fmt(good.best.v)}` : '';
+    const basis = give ? (good.cost != null ? `仕入れ値${fmt(good.cost)}` : where ? `仕入れ値不明・${where}` : '仕入れ値不明・ふつうの値') : '';
     const goodBtn = give
-      ? `<button class="mini" data-act="good" data-kind="give" data-g="${g}" data-n="${good.n}" title="${where}を下回らない数" ${good.n === n ? 'disabled' : ''}>得な数 ${good.n}</button>`
+      ? `<button class="mini" data-act="good" data-kind="give" data-g="${g}" data-n="${good.n}" title="${basis}を下回らない数" ${good.n === n ? 'disabled' : ''}>得な数 ${good.n}</button>`
       : good.best ? `<button class="mini" data-act="good" data-kind="take" data-g="${g}" data-n="${good.n}" title="${where}で売れば儲かる数" ${good.n === n ? 'disabled' : ''}>儲かる数 ${good.n}</button>` : '';
+    // 売る品は仕入れ値と、訪れた港の一番の売り値。買う品は訪れた港の一番の売り値
+    const info = give
+      ? `${good.cost != null ? `仕入れ値 ${fmt(good.cost)}` : '仕入れ値 —'}${where ? `・${where}で売れた` : ''}`
+      : where ? `${where}で売れた` : '行ったことのある港では見ていない';
     return `<tr>
       <td class="small ${give ? 'good' : ''}">${give ? giveLabel : takeLabel}</td>
-      <td>${D.goods[g].icon} ${D.goods[g].name}</td>
+      <td>${D.goods[g].icon} ${D.goods[g].name}<div class="small muted">${info}</div></td>
       <td>${stepper(kind, g, n)}${goodBtn}</td>
       <td class="num">${fmt(v)}${unit}<div class="small ${slid ? 'bad' : 'muted'}">平均${fmt(v / n)}・最後の1個${fmt(last)}${slid ? (give ? '（売りすぎ）' : '（買いすぎ）') : ''}</div></td>
       <td><button class="mini" data-act="unpick" data-kind="${kind}" data-g="${g}" title="台から下ろす">✕</button></td></tr>`;
@@ -225,11 +230,15 @@
     const catBtns = cats.map(([c, l]) => `<button class="mini ${tradeCat === c ? 'on' : ''}" data-act="tcat" data-c="${c}">${l}</button>`).join('');
     const sortBtns = [['deal', 'お得な順'], ['name', 'いつもの順']]
       .map(([k, l]) => `<button class="mini ${tradeSort === k ? 'on' : ''}" data-act="tsort" data-k="${k}">${l}</button>`).join('');
+    // 積荷の行には仕入れ値を添え、仕入れ値より高く売れるなら「儲け」、安いなら「損」と出す
     const row = (kind, g, have, price) => {
-      const gd = D.goods[g];
+      const gd = D.goods[g], cost = kind === 'give' ? E().cost(s, g) : null;
+      const tag = cost == null ? priceTag(price, gd.base, kind)
+        : price >= cost * 1.15 ? '<span class="tag hi" title="仕入れ値より高く売れる">儲け</span>'
+        : price < cost ? '<span class="tag bad" title="仕入れ値より安い">損</span>' : '';
       return `<button class="goods-row ${basket[kind][g] ? 'picked' : ''}" data-act="pick" data-kind="${kind}" data-g="${g}">
-        <span class="gname">${gd.icon} ${gd.name}</span><span class="num muted small">${have}</span>
-        <span class="num">${fmt(price)}${unit}</span><span class="gtag">${priceTag(price, gd.base, kind)}</span></button>`;
+        <span class="gname">${gd.icon} ${gd.name}${kind === 'give' ? `<small class="gcost">仕入${cost == null ? ' —' : fmt(cost)}</small>` : ''}</span><span class="num muted small">${have}</span>
+        <span class="num">${fmt(price)}${unit}</span><span class="gtag">${tag}</span></button>`;
     };
     const giveLabel = coin ? '売る' : '渡す', takeLabel = coin ? '買う' : 'もらう';
 
@@ -254,7 +263,7 @@
     const deal = `<div class="deal">
       <h3>交換の台</h3>
       ${lines.length ? `<table class="trade"><tbody>${lines.map(line => dealLine(s, line, unit, giveLabel, takeLabel)).join('')}</tbody></table>
-        <p class="muted small">同じ品物をたくさん${giveLabel}と1個ごとに値が下がり、たくさん${takeLabel}と上がる（大きな町ほど動きにくい）。「得な数」は、ほかの港の相場と比べて損しない数。</p>`
+        <p class="muted small">同じ品物をたくさん${giveLabel}と1個ごとに値が下がり、たくさん${takeLabel}と上がる（大きな町ほど動きにくい）。「得な数」は、仕入れ値を下回らずに売れる数（儲けが出る分だけ）。「儲かる数」は、行ったことのある港で売れば儲かる数。</p>`
         : `<p class="muted small">上の品物を押すと、ここに乗る。</p>`}
       <div>${sum}</div>
       <div class="buttons">

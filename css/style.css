@@ -165,6 +165,8 @@ select { font: inherit; color: var(--ink); background: var(--panel); border: 1px
 .goods-row.picked { border-color: var(--accent); background: var(--chip); }
 .goods-row .gname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .goods-row .gtag { text-align: right; }
+.goods-row .gcost { display: block; font-size: 11px; color: var(--muted); }
+.tag.bad { background: var(--bad); color: #fff; }
 .memo-line { margin: 2px 0 6px; }
 
 /* 知識：1行1知識。押した知識だけ説明を開く */

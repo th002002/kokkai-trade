@@ -80,7 +80,20 @@
     return { coin: false, giveV, takeV, credit, balance, ok: balance >= -1e-6 };
   };
 
-  // ほかの港の相場の控え（memo）で、その品物を一番高く引き取ってくれた値と港。知らなければ null
+  // ---------- 仕入れ値 ----------
+  // 積荷1つあたりの平均の仕入れ値を s.costs に持つ。買うたびに平均し直す（売る・食べる・奪われるでは変わらない）
+  // 始めから持っている積荷はふつうの値、戦いで奪った積荷はただ（0）として数える
+  const costs = s => s.costs || (s.costs = {});
+  E.cost = (s, g) => (s.cargo[g] > 0 && costs(s)[g] != null ? costs(s)[g] : null);
+  E.addCargo = function (s, g, n, unitCost) {
+    if (n <= 0) return;
+    const have = s.cargo[g], c = costs(s), old = have > 0 && c[g] != null ? c[g] : unitCost;
+    c[g] = (old * have + unitCost * n) / (have + n);
+    s.cargo[g] = have + n;
+  };
+
+  // 訪れた港の相場の控え（memo）で、その品物を一番高く引き取ってくれた値と港。行ったことのある港がなければ null
+  // 控えは訪れたときのものなので、いまの相場とは違うことがある
   E.bestElsewhere = function (s, townId, g) {
     let best = null;
     for (const id in s.memo) {
@@ -90,12 +103,14 @@
     return best;
   };
 
-  // ここで売ると得な数。1個ごとに値が下がるので、ほかで売れる値（知らなければふつうの値）を下回る手前まで
+  // ここで売ると得な数。1個ごとに値が下がるので、仕入れ値を下回る手前まで（儲けが出る分だけ）
+  // 仕入れ値がわからない積荷は、訪れた港で売れた一番の値（それも知らなければふつうの値）を基準にする
   E.goodSellCount = function (s, townId, g) {
-    const best = E.bestElsewhere(s, townId, g), floor = Math.max(best ? best.v : 0, D.goods[g].base);
+    const best = E.bestElsewhere(s, townId, g), cost = E.cost(s, g);
+    const floor = cost != null ? cost : best ? best.v : D.goods[g].base;
     let stock = s.towns[townId].stock[g], n = 0;
     while (n < s.cargo[g] && E.giveUnit(s, townId, g, stock + n) >= floor) n++;
-    return { n, floor, best };
+    return { n, floor, best, cost };
   };
 
   // ここで買って、ほかの港で売れば儲かる数（ほかの相場を知っているときだけ）。1個ごとに値が上がるので、ほかで売れる値の9割までに抑える
@@ -144,9 +159,13 @@
     if (!q.ok) return { ok: false, msg: q.coin ? `金貨が${q.pay}枚要る（手持ち${s.coins}枚）。` : '村の人は首を横に振った。渡す品が足りない。' };
 
     const gave = [], got = [];
+    // 受け取る品の仕入れ値は、在庫が動く前の値で数える
+    const paid = {};
+    for (const g in take) if (take[g] > 0) paid[g] = E.takeCost(s, townId, g, take[g]) / take[g];
     for (const g in D.goods) {
       const gv = give[g] || 0, tk = take[g] || 0;
-      s.cargo[g] += tk - gv;
+      s.cargo[g] -= gv;
+      if (tk) E.addCargo(s, g, tk, paid[g]);
       t.stock[g] += gv - tk;
       if (gv) gave.push(`${D.goods[g].name}${gv}`);
       if (tk) got.push(`${D.goods[g].name}${tk}`);

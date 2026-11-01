@@ -39,6 +39,9 @@
     s.party = D.start.party.map(G.Fleet.newPerson);
     s.ships = D.start.ships.map(sh => G.Fleet.newShip(s, sh.type, null, sh.seats));
     for (const g in D.goods) s.cargo[g] = D.start.cargo[g] || 0;
+    // 始めから持っている積荷の仕入れ値はふつうの値とする
+    s.costs = {};
+    for (const g in D.start.cargo) s.costs[g] = D.goods[g].base;
     for (const id in D.towns) {
       s.towns[id] = { knowledge: [...D.towns[id].knowledge], credit: 0, stock: {}, pop: D.towns[id].pop, boom: 50, researchers: 0 };
     }

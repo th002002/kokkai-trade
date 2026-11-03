@@ -1,0 +1,80 @@
+# BTC/JPY デイトレ戦略 検証用設定
+# ※ 検証専用。注文・APIキーに関する設定はありません。
+
+data:
+  exchange: bitbank
+  symbol: BTC/JPY
+  timeframe: 15m
+  csv_path: data/btc_jpy_15m.csv
+  fetch_start_date: "2017-01-01"   # 初回取得の開始日(UTC)。データのない日は飛ばす
+  # バックテストに使う期間を絞る場合（null = 全期間）
+  backtest_start: null             # 例 "2021-01-01"
+  backtest_end: null
+
+backtest:
+  initial_capital: 1000000         # 初期資金（円）
+  fee_rate: 0.001                  # 手数料 片道 0.1%
+  slippage_rate: 0.0005            # スリッページ 0.05%（買いは高く、売りは安く約定）
+  position_size: 1.0               # 1回に使う資金の割合（1.0 = 全額、レバレッジなし）
+  qty_step: 0.0001                 # 数量の最小単位(BTC)。これ未満は切り捨て
+  force_close_time: "23:45"        # この足の終値で強制決済（JST）
+  last_entry_time: "23:00"         # これより後の足の始値では新規に買わない（JST）
+  daily_max_loss: 0.02             # その日の開始時資産から 2% 減ったら当日は取引停止
+  daily_loss_include_unrealized: true  # 含み損も含めて判定（判定は終値、決済は次の足の始値）
+
+validation:
+  train_ratio: 0.6                 # 前半60%を学習、後半40%を検証（split_date 指定時はそちら優先）
+  split_date: null                 # 例 "2023-01-01"（JST、この日以降が検証期間）
+  objective: sharpe                # 学習期間で最大化する指標: sharpe / total_return
+  min_trades: 30                   # 学習期間でこれ未満の取引数のパラメータは選ばない
+  max_combinations: 16             # 1戦略あたりの探索数の上限（過剰最適化の防止）
+
+output_dir: results
+
+# 戦略: キー名 = strategies/ 内のモジュール名
+#   params: 既定値（grid にないものはこの値で固定）
+#   grid:   学習期間で試す候補。少数に絞ること
+#   optimize: false ならパラメータ探索せず params のまま評価
+strategies:
+  rsi_reversal:          # A: RSI 逆張り
+    enabled: true
+    params:
+      period: 14
+      entry_level: 30
+      exit_level: 70
+      max_hold_bars: 16  # 16本 = 4時間で時間切れ決済
+    grid:
+      period: [9, 14]
+      entry_level: [25, 30]
+      max_hold_bars: [8, 16]
+
+  bollinger_reversal:    # B: ボリンジャーバンド逆張り
+    enabled: true
+    params:
+      period: 20
+      num_std: 2.0
+      stop_loss_pct: null   # 例 0.01 で約定価格の1%下に損切り
+      max_hold_bars: null
+    grid:
+      period: [20, 40]
+      num_std: [2.0, 2.5]
+
+  ma_cross_atr:          # C: 移動平均クロス + ATR 損切り・利確
+    enabled: true
+    params:
+      fast: 10
+      slow: 40
+      atr_period: 14
+      stop_atr: 1.5
+      take_atr: 3.0
+    grid:
+      fast: [5, 10]
+      slow: [30, 60]
+      stop_atr: [1.0, 2.0]
+
+  fixed_time:            # 比較用: 毎日同じ時刻に買って決済
+    enabled: true
+    optimize: false
+    params:
+      entry_time: "09:00"
+      exit_time: "23:45"   # 23:45 以降 = 強制決済で手仕舞い

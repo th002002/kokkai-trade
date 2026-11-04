@@ -101,7 +101,9 @@ def fetch(cfg: dict) -> None:
 
     # 認証情報は渡さない（公開APIのみ使用）
     # trust_env: 環境変数のHTTP(S)_PROXY を使う（社内プロキシ等の環境向け）
-    ex = getattr(ccxt, dcfg["exchange"])({"enableRateLimit": True, "trust_env": True})
+    #   ccxt は設定の trust_env をセッション作成後に反映しないため、セッションにも直接設定する
+    ex = getattr(ccxt, dcfg["exchange"])({"enableRateLimit": True, "requests_trust_env": True})
+    ex.session.trust_env = True
 
     existing = _read_csv(path)
     if len(existing):

@@ -130,9 +130,10 @@ def features(panel: dict, cfg: dict) -> dict:
     close = panel["close"]
     hist_ok = close.notna().cumsum() >= cfg["min_history_days"]
     jpy_vol = (panel["volume"] * close).rolling(30, min_periods=20).median()
-    liq_ok = jpy_vol >= cfg["min_jpy_volume"]
-    liq_ok["BTC/JPY"] = True  # BTC は基準の銘柄なので出来高の条件から外す（2017年は取引所全体の出来高が小さい）
-    btc = close["BTC/JPY"]
+    liq_ok = jpy_vol >= cfg.get("min_quote_volume", cfg.get("min_jpy_volume"))
+    base = cfg.get("base_symbol", "BTC/JPY")
+    liq_ok[base] = True  # 基準の銘柄（BTC）は出来高の条件から外す（2017年は取引所全体の出来高が小さい）
+    btc = close[base]
     n = cfg.get("market_filter_sma")
     market_ok = (btc > btc.rolling(n, min_periods=n).mean()) if n else pd.Series(True, index=close.index)
     return {"hist_ok": hist_ok, "liq_ok": liq_ok & close.notna(), "market_ok": market_ok.fillna(False)}
@@ -167,11 +168,11 @@ def momentum_selector(panel, feat, cfg, params):
 
 
 def btc_hold_selector(panel, feat, cfg, params):
-    return lambda i, held: {"BTC/JPY": 1.0}
+    return lambda i, held: {cfg.get("base_symbol", "BTC/JPY"): 1.0}
 
 
 def btc_filter_selector(panel, feat, cfg, params):
-    return lambda i, held: {"BTC/JPY": 1.0} if feat["market_ok"].iloc[i] else {}
+    return lambda i, held: {cfg.get("base_symbol", "BTC/JPY"): 1.0} if feat["market_ok"].iloc[i] else {}
 
 
 def equal_weight_selector(panel, feat, cfg, params):
@@ -202,8 +203,10 @@ def simulate(panel, cfg, select, start: int, end: int) -> dict:
     pending = None
     equity = np.empty(end - start)
     n_hold = np.zeros(end - start)
-    traded = costs = 0.0
+    traded = costs = funding_paid = 0.0
     delisted_exits = []
+    # 無期限先物の場合: 買いポジションは funding がプラスなら払い、マイナスなら受け取る（その日の合計 × 終値の評価額）
+    fu = panel["funding"].to_numpy() if "funding" in panel else None
 
     for t, i in enumerate(range(start, end)):
         # 始値: 前日の判定どおりに売買
@@ -233,6 +236,13 @@ def simulate(panel, cfg, select, start: int, end: int) -> dict:
         ci = c[i]
         ok = np.isfinite(ci)
         last_px[ok] = ci[ok]
+        if fu is not None:
+            for s, q in qty.items():
+                f = fu[i, col[s]]
+                if np.isfinite(f):
+                    pay = q * last_px[col[s]] * f
+                    cash -= pay
+                    funding_paid += pay
         # 上場廃止: データが終わった保有銘柄は最後の終値で売る
         for s in list(qty):
             if last_valid[s] is not None and idx[i] > last_valid[s]:
@@ -249,11 +259,11 @@ def simulate(panel, cfg, select, start: int, end: int) -> dict:
 
     eq = pd.Series(equity, index=idx[start:end])
     years = len(eq) / 365
-    return {"equity": eq, "metrics": metrics(eq, cfg["initial_capital"], n_hold, traded, costs, years),
+    return {"equity": eq, "metrics": metrics(eq, cfg["initial_capital"], n_hold, traded, costs, years, funding_paid),
             "delisted": delisted_exits}
 
 
-def metrics(eq, cap, n_hold, traded, costs, years) -> dict:
+def metrics(eq, cap, n_hold, traded, costs, years, funding_paid=0.0) -> dict:
     ret = pd.concat([pd.Series([cap]), eq.reset_index(drop=True)]).pct_change().dropna()
     total = eq.iloc[-1] / cap - 1
     sd = ret.std()
@@ -267,6 +277,7 @@ def metrics(eq, cap, n_hold, traded, costs, years) -> dict:
         "avg_holdings": round(n_hold.mean(), 2),
         "turnover_per_year": round(traded / cap / years, 1),  # 初期資金に対する年間売買額（倍）
         "costs_pct_of_capital": round(costs / cap * 100, 1),
+        "funding_paid_pct_of_capital": round(funding_paid / cap * 100, 1),
     }
 
 
@@ -324,14 +335,14 @@ def plot(curves: dict, split, path: Path, cap: float) -> None:
     plt.close(fig)
 
 
-def run(cfg: dict) -> None:
-    panel = load_panel(cfg)
+def run(cfg: dict, panel: dict | None = None) -> None:
+    panel = load_panel(cfg) if panel is None else panel
     feat = features(panel, cfg)
     out = resolve(cfg["output_dir"])
     out.mkdir(parents=True, exist_ok=True)
 
     # 200日線が計算できる日から評価を始める（全戦略で同じ期間）
-    first = int(np.argmax(panel["close"]["BTC/JPY"].rolling(cfg["market_filter_sma"] or 1).mean().notna().to_numpy()))
+    first = int(np.argmax(panel["close"][cfg.get("base_symbol", "BTC/JPY")].rolling(cfg["market_filter_sma"] or 1).mean().notna().to_numpy()))
     n = len(panel["close"])
     k = first + int((n - first) * cfg["train_ratio"])
     idx = panel["close"].index

@@ -147,3 +147,24 @@ rotation:
   grid:
     lookback: [28, 56, 84]
     top_n: [3, 5]
+
+# Hyperliquid 版のローテーション（python hl_rotation.py fetch / run）。ルールは rotation と同じ
+#   無期限先物の買いのみ・レバレッジ1倍。保有中は funding を払う（マイナスなら受け取る）
+hl_rotation:
+  data_dir: data/hyperliquid_1d
+  output_dir: results/hl_rotation
+  base_symbol: BTC
+  exclude: []
+  initial_capital: 10000           # USDC
+  fee_rate: 0.00045                # 先物 taker 0.045%
+  slippage_rate: 0.0005            # 0.05%（アルトは板が薄い）
+  min_history_days: 90
+  min_quote_volume: 2000000        # 直近30日の売買代金（中央値）が1日200万ドル未満の銘柄は対象外
+  rebalance_weekday: 6
+  market_filter_sma: 200
+  keep_buffer: 2.0
+  train_ratio: 0.6
+  params: {lookback: 56, top_n: 3}
+  grid:
+    lookback: [28, 56, 84]
+    top_n: [3, 5]

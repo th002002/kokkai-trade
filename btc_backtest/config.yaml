@@ -96,3 +96,32 @@ strategies:
     params:
       entry_time: "09:00"
       exit_time: "23:45"   # 23:45 以降 = 強制決済で手仕舞い
+
+# ---------------------------------------------------------------------------
+# Funding Carry 検証（python funding_carry.py fetch / run）
+#   現物ロング + 無期限先物ショートを同量持ち、資金調達率（funding）を受け取る想定の試算。
+#   価格変動は打ち消されるので、損益 ≒ 受け取った funding - 売買コスト。
+#   注文コードはなし。データは Hyperliquid の公開API（認証不要）。
+# ---------------------------------------------------------------------------
+funding_carry:
+  coins: [BTC, ETH, HYPE]
+  data_dir: data/hyperliquid
+  output_dir: results/funding
+  initial_capital: 10000          # USDC
+  # コスト（片道、約定代金に対して）。Hyperliquid の基本手数料（取引高が少ない層）を想定
+  perp_fee: 0.00045               # 先物 taker 0.045%
+  spot_fee: 0.0007                # 現物 taker 0.07%
+  slippage: 0.0002                # 0.02%
+  basis_cost: 0.0005              # 現物と先物の価格差（ベーシス）で不利に建つ分 0.05%
+  # 先物ショートのレバレッジ（現物の評価額 / 先物口座の証拠金）。1 = 資金の半分ずつ
+  #   現物は先物の証拠金に使えない前提（保守的）
+  short_leverage: 1.0
+  rebalance_band: 0.5             # レバレッジが目標の ±50% を外れたら日末に調整（両方の足で売買）
+  # 維持証拠金率（清算の判定）。最大レバレッジ BTC 40倍 / ETH 25倍 / HYPE 10倍 の半分の証拠金として概算
+  maintenance_margin: {BTC: 0.0125, ETH: 0.02, HYPE: 0.05}
+  train_ratio: 0.6
+  # 条件付き carry: 直近 window_days の平均 funding（年率）が entry_apr 以上で建て、exit_ratio*entry_apr 未満で解消
+  params: {window_days: 7, entry_apr: 0.10, exit_ratio: 0.5}
+  grid:
+    window_days: [3, 7]
+    entry_apr: [0.05, 0.10, 0.20]

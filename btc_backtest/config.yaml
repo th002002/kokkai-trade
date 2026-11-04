@@ -72,6 +72,24 @@ strategies:
       slow: [30, 60]
       stop_atr: [1.0, 2.0]
 
+  box_range:             # D: ボックス相場の判定 + ボックス内の逆張り
+    enabled: true
+    params:
+      lookback: 32         # ボックスを作る本数（32本 = 8時間）
+      min_width: 0.015     # 幅 1.5% 以上（往復コスト約0.3%の5倍）
+      max_width: 0.06      # 幅 6% 以下
+      er_max: 0.3          # 効率比がこれ以下 = 行って戻っている
+      min_touches: 2       # 上限付近・下限付近にそれぞれ2回以上
+      touch_zone: 0.15     # 「付近」= 幅の15%以内
+      entry_zone: 0.2      # 下から20%以内で買い
+      take_zone: 0.5       # 中心で利確
+      stop_buffer: 0.1     # 下限から幅の10%割れで損切り
+      max_hold_bars: 32
+    grid:
+      lookback: [32, 64]
+      er_max: [0.2, 0.3]
+      take_zone: [0.5, 0.8]
+
   fixed_time:            # 比較用: 毎日同じ時刻に買って決済
     enabled: true
     optimize: false

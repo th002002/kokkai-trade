@@ -321,7 +321,10 @@ def plot(curves: dict, split, path: Path, cap: float) -> None:
         ret = (eq.iloc[-1] / cap - 1) * 100
         ax.plot(eq.index, eq.values / cap, color=color, ls=ls, lw=lw, label=f"{name} {ret:+,.0f}%")
     ax.set_yscale("log")
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}倍"))
+    fmt = FuncFormatter(lambda v, _: f"{v:g}倍")
+    ax.yaxis.set_major_formatter(fmt)
+    ax.yaxis.set_minor_formatter(fmt)  # 範囲が狭いと補助目盛にも数字が出るので同じ表記にする
+    ax.tick_params(axis="y", which="minor", labelsize=7)
     ax.axvline(split, color="#8a8984", lw=1, ls=":")
     ax.annotate("← 学習 | 検証 →", (split, 1), xycoords=("data", "axes fraction"), ha="center", va="bottom",
                 fontsize=8, color="#52514e")

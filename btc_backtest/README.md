@@ -176,3 +176,16 @@ python rotation.py run     # → results/rotation/（summary.csv, yearly.csv, gr
 - 2020年5月より前に bitbank にあった円建てペアは、BTC・XRP・MONA・BCC だけです。初期は選べる銘柄が少なくなります
 - 取扱停止・移行（MATIC→POL など）の後に出来高0で価格が止まった日は、データを打ち切り、最後の終値で売ったものとして扱います
 - BTC は、2017年の取引所全体の出来高が小さいため、出来高の条件から外しています
+
+### Hyperliquid 版（無期限先物）
+
+```bash
+python hl_rotation.py fetch           # 全銘柄（上場廃止を含む）の日足
+python hl_rotation.py fetch-funding   # 実際に保有した期間の funding だけ取得（全銘柄分はレート制限で数時間かかるため）
+python hl_rotation.py run             # → results/hl_rotation/
+```
+
+- ルールは bitbank 版と同じです。先物の買いのみ・レバレッジ1倍で、保有中は funding を払います（マイナスなら受け取る）
+- 銘柄の選び方は価格だけで決まるので、funding を保有期間だけ取っても結果は全部取った場合と同じです
+- 「全銘柄を均等に保有」は対象が多すぎるため、funding の一部しか入っていません（参考値）
+- データは2023年からで、期間が短い点に注意してください

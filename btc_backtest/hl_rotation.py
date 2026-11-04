@@ -29,16 +29,16 @@ def load_cfg(path: Path) -> dict:
         return yaml.safe_load(f)["hl_rotation"]
 
 
-def _info(ex, body, retries=6):
+def _info(ex, body, pause=0.5, retries=8):
     import ccxt
 
     for i in range(retries):
         try:
             res = ex.publicPostInfo(body)
-            time.sleep(0.4)  # レート制限を避ける
+            time.sleep(pause)  # レート制限を避ける
             return res
         except (ccxt.NetworkError, ccxt.RateLimitExceeded):
-            time.sleep(2 ** (i + 1))
+            time.sleep(min(60, 2 ** (i + 2)))
     raise RuntimeError("再試行の上限に達しました（取得済みの銘柄は保存済み。再実行で続きから）")
 
 
@@ -51,24 +51,39 @@ def fetch(cfg: dict) -> None:
     ddir.mkdir(parents=True, exist_ok=True)
     now = int(time.time() * 1000)
     universe = _info(ex, {"type": "meta"})["universe"]
+
+    # 1) 全銘柄の日足（軽い）
     meta = []
     for k, u in enumerate(universe):
         coin = u["name"]
         safe = coin.replace("/", "_")
-        # 日足（1回で最大5000本）
         c = _info(ex, {"type": "candleSnapshot", "req": {"coin": coin, "interval": "1d", "startTime": START_MS, "endTime": now}})
         d = pd.DataFrame([{"timestamp": int(x["t"]), "open": float(x["o"]), "high": float(x["h"]), "low": float(x["l"]),
                            "close": float(x["c"]), "volume": float(x["v"])} for x in c])
+        liquid = False
         if len(d):
             d = d[d["timestamp"] + DAY_MS <= now]
             d.to_csv(ddir / f"{safe}.csv", index=False)
-        # funding（1回500件、差分だけ）
-        fpath = ddir / f"funding_{safe}.csv"
+            med = (d["volume"] * d["close"]).rolling(30, min_periods=20).median()
+            liquid = bool((med >= cfg["min_quote_volume"]).any()) or coin == cfg["base_symbol"]
+        meta.append({"symbol": coin, "file": safe, "delisted": bool(u.get("isDelisted", False)), "days": len(d),
+                     "ever_liquid": liquid})
+        if (k + 1) % 25 == 0 or k + 1 == len(universe):
+            print(f"  日足 {k + 1}/{len(universe)}", flush=True)
+    meta = pd.DataFrame(meta)
+    meta.to_csv(ddir / "_markets.csv", index=False)
+
+    # 2) funding（重いので、一度でも出来高の条件を満たした＝保有されうる銘柄だけ）
+    targets = meta[meta["ever_liquid"]]
+    print(f"  funding を取得する銘柄: {len(targets)} / {len(meta)}", flush=True)
+    for k, (_, r) in enumerate(targets.iterrows()):
+        fpath = ddir / f"funding_{r['file']}.csv"
         old = pd.read_csv(fpath) if fpath.exists() else pd.DataFrame(columns=["timestamp", "funding_rate"])
-        since = int(old["timestamp"].max()) + 1 if len(old) else (int(d["timestamp"].min()) if len(d) else START_MS)
+        d = pd.read_csv(ddir / f"{r['file']}.csv")
+        since = int(old["timestamp"].max()) + 1 if len(old) else int(d["timestamp"].min())
         rows = []
         while since < now - 3_600_000:
-            f = _info(ex, {"type": "fundingHistory", "coin": coin, "startTime": since})
+            f = _info(ex, {"type": "fundingHistory", "coin": r["symbol"], "startTime": since}, pause=2.5)
             if not f:
                 break
             rows += [{"timestamp": int(x["time"]), "funding_rate": float(x["fundingRate"])} for x in f]
@@ -76,14 +91,14 @@ def fetch(cfg: dict) -> None:
             if last < since or len(f) < 500:
                 break
             since = last + 1
+            if len(rows) >= 5000:  # 途中保存
+                old = pd.concat([old, pd.DataFrame(rows)], ignore_index=True).drop_duplicates("timestamp")
+                old.to_csv(fpath, index=False)
+                rows = []
         fd = pd.concat([old, pd.DataFrame(rows)], ignore_index=True)
         if len(fd):
-            fd = fd.drop_duplicates("timestamp").sort_values("timestamp")
-            fd.to_csv(fpath, index=False)
-        meta.append({"symbol": coin, "file": safe, "delisted": bool(u.get("isDelisted", False)), "days": len(d)})
-        print(f"  [{k + 1}/{len(universe)}] {coin:10s} 日足 {len(d):4d}本  funding {len(fd):6d}件 {'(上場廃止)' if meta[-1]['delisted'] else ''}",
-              flush=True)
-    pd.DataFrame(meta).to_csv(ddir / "_markets.csv", index=False)
+            fd.drop_duplicates("timestamp").sort_values("timestamp").to_csv(fpath, index=False)
+        print(f"  funding [{k + 1}/{len(targets)}] {r['symbol']:10s} {len(fd):6d}件", flush=True)
 
 
 def load_panel(cfg: dict) -> dict:

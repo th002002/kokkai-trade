@@ -1,0 +1,170 @@
+# BTC/JPY デイトレ戦略 検証用設定
+# ※ 検証専用。注文・APIキーに関する設定はありません。
+
+data:
+  exchange: bitbank
+  symbol: BTC/JPY
+  timeframe: 15m
+  csv_path: data/btc_jpy_15m.csv
+  fetch_start_date: "2017-01-01"   # 初回取得の開始日(UTC)。データのない日は飛ばす
+  # バックテストに使う期間を絞る場合（null = 全期間）
+  backtest_start: null             # 例 "2021-01-01"
+  backtest_end: null
+
+backtest:
+  initial_capital: 1000000         # 初期資金（円）
+  fee_rate: 0.001                  # 手数料 片道 0.1%
+  slippage_rate: 0.0005            # スリッページ 0.05%（買いは高く、売りは安く約定）
+  position_size: 1.0               # 1回に使う資金の割合（1.0 = 全額、レバレッジなし）
+  qty_step: 0.0001                 # 数量の最小単位(BTC)。これ未満は切り捨て
+  force_close_time: "23:45"        # この足の終値で強制決済（JST）
+  last_entry_time: "23:00"         # これより後の足の始値では新規に買わない（JST）
+  daily_max_loss: 0.02             # その日の開始時資産から 2% 減ったら当日は取引停止
+  daily_loss_include_unrealized: true  # 含み損も含めて判定（判定は終値、決済は次の足の始値）
+
+validation:
+  train_ratio: 0.6                 # 前半60%を学習、後半40%を検証（split_date 指定時はそちら優先）
+  split_date: null                 # 例 "2023-01-01"（JST、この日以降が検証期間）
+  objective: sharpe                # 学習期間で最大化する指標: sharpe / total_return
+  min_trades: 30                   # 学習期間でこれ未満の取引数のパラメータは選ばない
+  max_combinations: 16             # 1戦略あたりの探索数の上限（過剰最適化の防止）
+
+output_dir: results
+
+# 戦略: キー名 = strategies/ 内のモジュール名
+#   params: 既定値（grid にないものはこの値で固定）
+#   grid:   学習期間で試す候補。少数に絞ること
+#   optimize: false ならパラメータ探索せず params のまま評価
+strategies:
+  rsi_reversal:          # A: RSI 逆張り
+    enabled: true
+    params:
+      period: 14
+      entry_level: 30
+      exit_level: 70
+      max_hold_bars: 16  # 16本 = 4時間で時間切れ決済
+    grid:
+      period: [9, 14]
+      entry_level: [25, 30]
+      max_hold_bars: [8, 16]
+
+  bollinger_reversal:    # B: ボリンジャーバンド逆張り
+    enabled: true
+    params:
+      period: 20
+      num_std: 2.0
+      stop_loss_pct: null   # 例 0.01 で約定価格の1%下に損切り
+      max_hold_bars: null
+    grid:
+      period: [20, 40]
+      num_std: [2.0, 2.5]
+
+  ma_cross_atr:          # C: 移動平均クロス + ATR 損切り・利確
+    enabled: true
+    params:
+      fast: 10
+      slow: 40
+      atr_period: 14
+      stop_atr: 1.5
+      take_atr: 3.0
+    grid:
+      fast: [5, 10]
+      slow: [30, 60]
+      stop_atr: [1.0, 2.0]
+
+  box_range:             # D: ボックス相場の判定 + ボックス内の逆張り
+    enabled: true
+    params:
+      lookback: 32         # ボックスを作る本数（32本 = 8時間）
+      min_width: 0.015     # 幅 1.5% 以上（往復コスト約0.3%の5倍）
+      max_width: 0.06      # 幅 6% 以下
+      er_max: 0.3          # 効率比がこれ以下 = 行って戻っている
+      min_touches: 2       # 上限付近・下限付近にそれぞれ2回以上
+      touch_zone: 0.15     # 「付近」= 幅の15%以内
+      entry_zone: 0.2      # 下から20%以内で買い
+      take_zone: 0.5       # 中心で利確
+      stop_buffer: 0.1     # 下限から幅の10%割れで損切り
+      max_hold_bars: 32
+    grid:
+      lookback: [32, 64]
+      er_max: [0.2, 0.3]
+      take_zone: [0.5, 0.8]
+
+  fixed_time:            # 比較用: 毎日同じ時刻に買って決済
+    enabled: true
+    optimize: false
+    params:
+      entry_time: "09:00"
+      exit_time: "23:45"   # 23:45 以降 = 強制決済で手仕舞い
+
+# ---------------------------------------------------------------------------
+# Funding Carry 検証（python funding_carry.py fetch / run）
+#   現物ロング + 無期限先物ショートを同量持ち、資金調達率（funding）を受け取る想定の試算。
+#   価格変動は打ち消されるので、損益 ≒ 受け取った funding - 売買コスト。
+#   注文コードはなし。データは Hyperliquid の公開API（認証不要）。
+# ---------------------------------------------------------------------------
+funding_carry:
+  coins: [BTC, ETH, HYPE]
+  data_dir: data/hyperliquid
+  output_dir: results/funding
+  initial_capital: 10000          # USDC
+  # コスト（片道、約定代金に対して）。Hyperliquid の基本手数料（取引高が少ない層）を想定
+  perp_fee: 0.00045               # 先物 taker 0.045%
+  spot_fee: 0.0007                # 現物 taker 0.07%
+  slippage: 0.0002                # 0.02%
+  basis_cost: 0.0005              # 現物と先物の価格差（ベーシス）で不利に建つ分 0.05%
+  # 先物ショートのレバレッジ（現物の評価額 / 先物口座の証拠金）。1 = 資金の半分ずつ
+  #   現物は先物の証拠金に使えない前提（保守的）
+  short_leverage: 1.0
+  rebalance_band: 0.5             # レバレッジが目標の ±50% を外れたら日末に調整（両方の足で売買）
+  # 維持証拠金率（清算の判定）。最大レバレッジ BTC 40倍 / ETH 25倍 / HYPE 10倍 の半分の証拠金として概算
+  maintenance_margin: {BTC: 0.0125, ETH: 0.02, HYPE: 0.05}
+  train_ratio: 0.6
+  # 条件付き carry: 直近 window_days の平均 funding（年率）が entry_apr 以上で建て、exit_ratio*entry_apr 未満で解消
+  params: {window_days: 7, entry_apr: 0.10, exit_ratio: 0.5}
+  grid:
+    window_days: [3, 7]
+    entry_apr: [0.05, 0.10, 0.20]
+
+# ---------------------------------------------------------------------------
+# 銘柄間ローテーション（python rotation.py fetch / run）
+#   「資金が向かっている銘柄に乗り、弱まったら降りる」中期のモメンタム戦略の検証。日足・現物のみ。
+# ---------------------------------------------------------------------------
+rotation:
+  data_dir: data/bitbank_1d
+  output_dir: results/rotation
+  exclude: [DAI/JPY]               # ステーブルコインは除外
+  initial_capital: 1000000
+  fee_rate: 0.0012                 # 片道 0.12%（アルトの taker 想定。BTC は 0.1% だが保守的に統一）
+  slippage_rate: 0.001             # 0.1%（アルトは板が薄い）
+  min_history_days: 90             # 上場から90日未満の銘柄は対象外
+  min_jpy_volume: 10000000         # 直近30日の売買代金（中央値）が1日1000万円未満の銘柄は対象外
+  rebalance_weekday: 6             # 日曜の終値で判定 → 翌日（月曜）の始値で売買（0=月 … 6=日）
+  market_filter_sma: 200           # BTC の終値がこの日数の移動平均を下回ったら全部現金（null で無効）
+  keep_buffer: 2.0                 # 保有中の銘柄は「上位 top_n×この倍数」位以内なら持ち続ける
+  train_ratio: 0.6
+  params: {lookback: 56, top_n: 3}
+  grid:
+    lookback: [28, 56, 84]
+    top_n: [3, 5]
+
+# Hyperliquid 版のローテーション（python hl_rotation.py fetch / run）。ルールは rotation と同じ
+#   無期限先物の買いのみ・レバレッジ1倍。保有中は funding を払う（マイナスなら受け取る）
+hl_rotation:
+  data_dir: data/hyperliquid_1d
+  output_dir: results/hl_rotation
+  base_symbol: BTC
+  exclude: []
+  initial_capital: 10000           # USDC
+  fee_rate: 0.00045                # 先物 taker 0.045%
+  slippage_rate: 0.0005            # 0.05%（アルトは板が薄い）
+  min_history_days: 90
+  min_quote_volume: 2000000        # 直近30日の売買代金（中央値）が1日200万ドル未満の銘柄は対象外
+  rebalance_weekday: 6
+  market_filter_sma: 200
+  keep_buffer: 2.0
+  train_ratio: 0.6
+  params: {lookback: 56, top_n: 3}
+  grid:
+    lookback: [28, 56, 84]
+    top_n: [3, 5]

@@ -205,6 +205,7 @@ def simulate(panel, cfg, select, start: int, end: int) -> dict:
     n_hold = np.zeros(end - start)
     traded = costs = funding_paid = 0.0
     delisted_exits = []
+    held_days: dict[str, set] = {}  # 銘柄ごとの保有日（funding を取得する範囲の判定に使う）
     # 無期限先物の場合: 買いポジションは funding がプラスなら払い、マイナスなら受け取る（その日の合計 × 終値の評価額）
     fu = panel["funding"].to_numpy() if "funding" in panel else None
 
@@ -253,6 +254,8 @@ def simulate(panel, cfg, select, start: int, end: int) -> dict:
                 delisted_exits.append((idx[i].date(), s))
 
         equity[t] = cash + sum(q * last_px[col[s]] for s, q in qty.items())
+        for s in qty:
+            held_days.setdefault(s, set()).add(i)
         n_hold[t] = len(qty)
         if idx[i].weekday() == wd and i + 1 < end:
             pending = select(i, set(qty))
@@ -260,7 +263,7 @@ def simulate(panel, cfg, select, start: int, end: int) -> dict:
     eq = pd.Series(equity, index=idx[start:end])
     years = len(eq) / 365
     return {"equity": eq, "metrics": metrics(eq, cfg["initial_capital"], n_hold, traded, costs, years, funding_paid),
-            "delisted": delisted_exits}
+            "delisted": delisted_exits, "held_days": held_days}
 
 
 def metrics(eq, cap, n_hold, traded, costs, years, funding_paid=0.0) -> dict:

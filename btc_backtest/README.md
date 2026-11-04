@@ -158,3 +158,21 @@ python funding_carry.py run     # → results/funding/（summary.csv, funding_st
 - **日本の税制・規制**: 海外取引所や DEX の利用、デリバティブ取引の課税は各自で確認してください
 
 > ⚠️ 過去の funding の水準が将来も続くとは限りません。funding は相場の過熱度で大きく変わり、マイナスになる期間もあります。
+
+---
+
+## 銘柄間ローテーション（中期モメンタム）の検証
+
+「資金が向かっている銘柄に乗り、弱まったら降りる」を日足でルール化した検証です。bitbank の円建て現物すべてが対象です（注文コードなし、公開APIのみ）。
+
+```bash
+python rotation.py fetch   # bitbank の円建て全ペアの日足（取扱停止・移行済みの銘柄も含む）
+python rotation.py run     # → results/rotation/（summary.csv, yearly.csv, grid.csv, rotation_equity.png）
+```
+
+ルールの詳細は `rotation.py` の先頭、設定は `config.yaml` の `rotation` にあります。比較対象は「BTCをずっと保有」「BTC＋200日線フィルター」「全銘柄を均等に保有」です。
+
+### 注意点
+- 2020年5月より前に bitbank にあった円建てペアは、BTC・XRP・MONA・BCC だけです。初期は選べる銘柄が少なくなります
+- 取扱停止・移行（MATIC→POL など）の後に出来高0で価格が止まった日は、データを打ち切り、最後の終値で売ったものとして扱います
+- BTC は、2017年の取引所全体の出来高が小さいため、出来高の条件から外しています

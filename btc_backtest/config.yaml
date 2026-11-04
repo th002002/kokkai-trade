@@ -125,3 +125,25 @@ funding_carry:
   grid:
     window_days: [3, 7]
     entry_apr: [0.05, 0.10, 0.20]
+
+# ---------------------------------------------------------------------------
+# 銘柄間ローテーション（python rotation.py fetch / run）
+#   「資金が向かっている銘柄に乗り、弱まったら降りる」中期のモメンタム戦略の検証。日足・現物のみ。
+# ---------------------------------------------------------------------------
+rotation:
+  data_dir: data/bitbank_1d
+  output_dir: results/rotation
+  exclude: [DAI/JPY]               # ステーブルコインは除外
+  initial_capital: 1000000
+  fee_rate: 0.0012                 # 片道 0.12%（アルトの taker 想定。BTC は 0.1% だが保守的に統一）
+  slippage_rate: 0.001             # 0.1%（アルトは板が薄い）
+  min_history_days: 90             # 上場から90日未満の銘柄は対象外
+  min_jpy_volume: 10000000         # 直近30日の売買代金（中央値）が1日1000万円未満の銘柄は対象外
+  rebalance_weekday: 6             # 日曜の終値で判定 → 翌日（月曜）の始値で売買（0=月 … 6=日）
+  market_filter_sma: 200           # BTC の終値がこの日数の移動平均を下回ったら全部現金（null で無効）
+  keep_buffer: 2.0                 # 保有中の銘柄は「上位 top_n×この倍数」位以内なら持ち続ける
+  train_ratio: 0.6
+  params: {lookback: 56, top_n: 3}
+  grid:
+    lookback: [28, 56, 84]
+    top_n: [3, 5]
